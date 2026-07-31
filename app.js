@@ -390,11 +390,14 @@ async function uploadRequestAttachment(req) {
         })
     });
 
-    const fileUrl = response.headers.get('Location');
-    if (!response.ok || !fileUrl) {
+    const location = response.headers.get('Location');
+    if (!response.ok || !location) {
         throw new Error(`Attachment server returned ${response.status}`);
     }
 
+    // JSONBlob currently returns a relative Location header. Resolve it against
+    // the API domain so a page hosted on another domain can download the file.
+    const fileUrl = new URL(location, ATTACHMENT_API_URL).href;
     req.fileUrl = fileUrl;
     // A remote, byte-for-byte copy exists now. Keeping Base64 in localStorage
     // risks exceeding its quota and corrupting future ticket synchronization.
