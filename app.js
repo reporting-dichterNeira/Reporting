@@ -6,8 +6,6 @@ const STORAGE_KEY = 'dn_portal_requests_v28';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
-const ATTACHMENT_API_URL = 'https://jsonblob.com/api/jsonBlob';
-const ATTACHMENT_CHUNK_CHARS = 7000;
 
 // BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
 const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fb398-a51c-79af-a1fd-c0095e6459fe';
@@ -153,8 +151,7 @@ async function fetchCloudData(userTriggered = false) {
             let updated = false;
 
             if (data && Array.isArray(data.requests)) {
-                const indexedRequests = await loadIndexedRequests(data.requestIndex);
-                state.requests = mergeRequests(state.requests, [...data.requests, ...indexedRequests]);
+                state.requests = mergeRequests(state.requests, data.requests);
                 saveToStorage();
                 updated = true;
             }
@@ -163,12 +160,6 @@ async function fetchCloudData(userTriggered = false) {
                 state.analystStatus = data.analystStatus;
                 saveNovedadesToStorage();
                 updated = true;
-            }
-
-            // A ticket submitted while the shared index was full may exist only
-            // in this browser. Retry it automatically after the upgraded page loads.
-            if (state.requests.some(req => req.fileChunks?.length && !req.recordUrl)) {
-                syncCloudData();
             }
 
             if (updated) {
@@ -212,14 +203,7 @@ function mergeRequests(localArr, cloudArr) {
             if (localReq.fileDataUrl && (!cloudReq.fileDataUrl || localReq.fileDataUrl.length > cloudReq.fileDataUrl.length)) {
                 bestFileUrl = localReq.fileDataUrl;
             }
-            const mergedReq = { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl };
-            // A stale local copy must not erase the independently stored attachment URL.
-            if (!mergedReq.fileUrl && cloudReq.fileUrl) mergedReq.fileUrl = cloudReq.fileUrl;
-            if (!mergedReq.fileChunks?.length && cloudReq.fileChunks?.length) {
-                mergedReq.fileChunks = cloudReq.fileChunks;
-            }
-            if (!mergedReq.recordUrl && cloudReq.recordUrl) mergedReq.recordUrl = cloudReq.recordUrl;
-            map.set(cloudReq.id, mergedReq);
+            map.set(cloudReq.id, { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl });
         }
     });
 
@@ -229,42 +213,21 @@ function mergeRequests(localArr, cloudArr) {
 }
 
 async function syncCloudData() {
-    // Store each attachment separately so the ticket database never drops it when
-    // its payload grows beyond the service limit.
-    try {
-        await Promise.all(state.requests
-            .filter(req => req.fileDataUrl && !req.fileUrl)
-            .map(req => uploadRequestAttachment(req)));
-    } catch (e) {
-        console.error('Unable to store attachment before sync:', e);
-        showToast('No se pudo guardar el archivo original. El ticket no se sincronizo.', 'error');
-        return false;
-    }
-
     saveToStorage();
     saveNovedadesToStorage();
 
-    // Tickets with attachments are stored independently; this keeps the shared
-    // index small enough for every computer to receive new requests.
-    const indexedRequests = state.requests.filter(req => req.recordUrl || req.fileChunks?.length);
-    try {
-        await Promise.all(indexedRequests.map(req => persistRequestRecord(req)));
-    } catch (e) {
-        console.error('Unable to store ticket record before sync:', e);
-        showToast('No se pudo sincronizar el ticket con la nube.', 'error');
-        return false;
-    }
-    saveToStorage();
-
-    const sanitizedRequests = state.requests.filter(req => !req.recordUrl).map(r => {
+    // Conservar archivos Excel e imágenes completos (hasta 3.5 MB de caracteres Base64)
+    // para garantizar que nunca se recorten las filas de los libros de Excel
+    const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        copy.fileDataUrl = null;
+        if (copy.fileDataUrl && copy.fileDataUrl.length > 3500000) {
+            copy.fileDataUrl = null;
+        }
         return copy;
     });
 
     const payload = {
         requests: sanitizedRequests,
-        requestIndex: indexedRequests.map(req => ({ id: req.id, recordUrl: req.recordUrl })),
         analystStatus: state.analystStatus,
         lastUpdated: new Date().toISOString()
     };
@@ -278,18 +241,16 @@ async function syncCloudData() {
 
         if (!resp.ok) {
             console.warn("Reintentando sincronización con metadatos de respaldo...");
-            const fallback = await fetch(SYNC_API_URL, {
+            const minReqs = state.requests.map(r => ({ ...r, fileDataUrl: null }));
+            await fetch(SYNC_API_URL, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requests: sanitizedRequests, requestIndex: indexedRequests.map(req => ({ id: req.id, recordUrl: req.recordUrl })), analystStatus: state.analystStatus, lastUpdated: new Date().toISOString() })
+                body: JSON.stringify({ requests: minReqs, analystStatus: state.analystStatus, lastUpdated: new Date().toISOString() })
             });
-            if (!fallback.ok) throw new Error(`Shared database returned ${fallback.status}`);
         }
         console.log("✅ Datos sincronizados correctamente en la nube.");
-        return true;
     } catch (e) {
         console.error("Error al publicar en la nube:", e);
-        return false;
     }
 }
 
@@ -338,39 +299,29 @@ function handleFileSelect(inputElem, targetInfoId) {
 
     if (inputElem.files && inputElem.files[0]) {
         const file = inputElem.files[0];
-        const isImage = file.type.startsWith('image/');
-        const iconName = isImage ? 'image' : 'file-spreadsheet';
+        const isImage = file.type.startsWith('image/') || !!file.name.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
 
-        if (isImage) {
-            compressImageFile(file, function(compressedDataUrl) {
-                inputElem.dataset.fileDataUrl = compressedDataUrl;
-                inputElem.dataset.fileName = file.name;
-
-                target.innerHTML = `
-                    <span class="file-attached-chip clickable">
-                        <i data-lucide="${iconName}"></i>
-                        <span>Adjunto listo: <strong>${escapeHtml(file.name)}</strong> (Descarga habilitada)</span>
-                    </span>
-                `;
-                lucide.createIcons();
-            });
-        } else {
-            // Para archivos Excel (.xlsx, .xls, .csv), guardamos el binario 100% completo e intacto
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                inputElem.dataset.fileDataUrl = e.target.result;
-                inputElem.dataset.fileName = file.name;
-
-                target.innerHTML = `
-                    <span class="file-attached-chip clickable">
-                        <i data-lucide="${iconName}"></i>
-                        <span>Excel completo listo: <strong>${escapeHtml(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB)</span>
-                    </span>
-                `;
-                lucide.createIcons();
-            };
-            reader.readAsDataURL(file);
+        if (!isImage) {
+            showToast('⚠️ Solo se permite adjuntar imágenes. Para archivos Excel o documentos, por favor enviarlos por Teams al equipo de Reporting.', 'warning');
+            inputElem.value = '';
+            inputElem.dataset.fileDataUrl = '';
+            inputElem.dataset.fileName = '';
+            target.innerHTML = '';
+            return;
         }
+
+        compressImageFile(file, function(compressedDataUrl) {
+            inputElem.dataset.fileDataUrl = compressedDataUrl;
+            inputElem.dataset.fileName = file.name;
+
+            target.innerHTML = `
+                <span class="file-attached-chip clickable">
+                    <i data-lucide="image"></i>
+                    <span>Imagen lista: <strong>${escapeHtml(file.name)}</strong> (Descarga habilitada)</span>
+                </span>
+            `;
+            lucide.createIcons();
+        });
     } else {
         inputElem.dataset.fileDataUrl = '';
         inputElem.dataset.fileName = '';
@@ -395,114 +346,6 @@ function dataURLtoBlob(dataurl) {
         console.error("Error al convertir DataURL a Blob:", e);
         return null;
     }
-}
-
-function waitForAttachmentStorage(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function loadIndexedRequests(index) {
-    if (!Array.isArray(index) || index.length === 0) return [];
-
-    const results = await Promise.all(index.map(async entry => {
-        if (!entry?.recordUrl) return null;
-        try {
-            const response = await fetch(entry.recordUrl, { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Response ${response.status}`);
-            const stored = await response.json();
-            return stored?.request ? { ...stored.request, recordUrl: entry.recordUrl } : null;
-        } catch (e) {
-            console.warn('Could not load indexed ticket:', entry.id, e);
-            return null;
-        }
-    }));
-
-    return results.filter(Boolean);
-}
-
-async function persistRequestRecord(req) {
-    const maxAttempts = 6;
-    const method = req.recordUrl ? 'PUT' : 'POST';
-    const targetUrl = req.recordUrl || ATTACHMENT_API_URL;
-    const requestCopy = { ...req, fileDataUrl: null };
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const response = await fetch(targetUrl, {
-            method,
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ request: requestCopy })
-        });
-
-        if (response.ok) {
-            if (!req.recordUrl) {
-                const location = response.headers.get('Location');
-                if (!location) throw new Error('Ticket record did not return a location');
-                req.recordUrl = new URL(location, ATTACHMENT_API_URL).href;
-            }
-            return req.recordUrl;
-        }
-
-        if (response.status === 429 && attempt < maxAttempts - 1) {
-            await waitForAttachmentStorage(2000 * (attempt + 1));
-            continue;
-        }
-
-        throw new Error(`Ticket record returned ${response.status}: ${await response.text()}`);
-    }
-}
-
-async function storeAttachmentChunk(chunk) {
-    const maxAttempts = 6;
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const response = await fetch(ATTACHMENT_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ chunk })
-        });
-
-        const location = response.headers.get('Location');
-        if (response.ok && location) {
-            return new URL(location, ATTACHMENT_API_URL).href;
-        }
-
-        if (response.status === 429 && attempt < maxAttempts - 1) {
-            const retryAfterSeconds = Number(response.headers.get('Retry-After'));
-            const delayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
-                ? retryAfterSeconds * 1000
-                : 2000 * (attempt + 1);
-            await waitForAttachmentStorage(delayMs);
-            continue;
-        }
-
-        const errorText = await response.text();
-        throw new Error(`Attachment server returned ${response.status}: ${errorText}`);
-    }
-}
-
-async function uploadRequestAttachment(req) {
-    if (!req?.fileDataUrl || req.fileUrl || req.fileChunks?.length) {
-        return req?.fileUrl || req?.fileChunks || null;
-    }
-
-    const chunks = [];
-    for (let start = 0; start < req.fileDataUrl.length; start += ATTACHMENT_CHUNK_CHARS) {
-        chunks.push(req.fileDataUrl.slice(start, start + ATTACHMENT_CHUNK_CHARS));
-    }
-
-    const fileChunks = [];
-    for (const chunk of chunks) {
-        fileChunks.push(await storeAttachmentChunk(chunk));
-    }
-
-    req.fileChunks = fileChunks;
-    // A remote, byte-for-byte copy exists now. Keeping Base64 in localStorage
-    // risks exceeding its quota and corrupting future ticket synchronization.
-    req.fileDataUrl = null;
-    return fileChunks;
 }
 
 function triggerBlobDownload(blob, filename) {
@@ -551,7 +394,7 @@ function generateFallbackImageBlob(req, callback) {
     canvas.toBlob(blob => callback(blob), 'image/png');
 }
 
-async function downloadRequestFile(reqId) {
+function downloadRequestFile(reqId) {
     const req = state.requests.find(r => r.id === reqId);
     if (!req || !req.fileName) {
         showToast('No se encontró información del archivo adjunto', 'warning');
@@ -567,50 +410,6 @@ async function downloadRequestFile(reqId) {
             return;
         }
     }
-
-    // Rebuild the exact original binary from the independent attachment chunks.
-    if (Array.isArray(req.fileChunks) && req.fileChunks.length > 0) {
-        try {
-            const chunks = await Promise.all(req.fileChunks.map(async fileUrl => {
-                const response = await fetch(fileUrl, { cache: 'no-store' });
-                if (!response.ok) throw new Error(`Response ${response.status}`);
-                const storedChunk = await response.json();
-                if (typeof storedChunk.chunk !== 'string') throw new Error('Invalid stored chunk');
-                return storedChunk.chunk;
-            }));
-            const blob = dataURLtoBlob(chunks.join(''));
-            if (!blob) throw new Error('Invalid reconstructed file');
-
-            triggerBlobDownload(blob, req.fileName);
-            showToast(`Descargando archivo completo original: ${req.fileName}`, 'success');
-            return;
-        } catch (e) {
-            console.error('Error downloading original attachment chunks:', e);
-        }
-    }
-
-    // Compatibility with attachments stored as one independent record.
-    if (req.fileUrl) {
-        try {
-            const response = await fetch(req.fileUrl, { cache: 'no-store' });
-            if (!response.ok) throw new Error(`Response ${response.status}`);
-
-            const storedFile = await response.json();
-            const blob = dataURLtoBlob(storedFile.fileDataUrl);
-            if (!blob) throw new Error('Invalid stored file');
-
-            triggerBlobDownload(blob, req.fileName);
-            showToast(`Descargando archivo completo original: ${req.fileName}`, 'success');
-            return;
-        } catch (e) {
-            console.error('Error downloading original attachment:', e);
-        }
-    }
-
-    // Never generate a CSV or an image from ticket fields as a replacement for
-    // an attachment: that is not the file the requester uploaded.
-    showToast('El archivo original no esta disponible para este ticket antiguo.', 'warning');
-    return;
 
     // 2. Respaldo para solicitudes demo antiguas de prueba
     const ext = req.fileName.split('.').pop().toLowerCase();
@@ -1242,14 +1041,6 @@ async function handleEncoladaSubmit(e) {
         resolvedAt: null
     };
 
-    try {
-        await uploadRequestAttachment(newReq);
-    } catch (error) {
-        console.error('Unable to upload original attachment:', error);
-        showToast('No se pudo guardar el archivo original. Intenta enviar nuevamente.', 'error');
-        return;
-    }
-
     await fetchCloudData();
     state.requests.unshift(newReq);
     recordMySubmittedId(newReq.id);
@@ -1306,14 +1097,6 @@ async function handleReportingSubmit(e) {
         newReq.solicitante = `Área: ${newReq.area}`;
     } else {
         newReq.solicitante = email;
-    }
-
-    try {
-        await uploadRequestAttachment(newReq);
-    } catch (error) {
-        console.error('Unable to upload original attachment:', error);
-        showToast('No se pudo guardar el archivo original. Intenta enviar nuevamente.', 'error');
-        return;
     }
 
     await fetchCloudData();
