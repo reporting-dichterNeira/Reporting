@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v36';
+const STORAGE_KEY = 'dn_portal_requests_v37';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -116,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadFromStorage();
     loadNovedadesFromStorage();
+    checkUrlTicketImport();
 
     if (state.requests.length === 0) {
         seedInitialMockData();
@@ -666,6 +667,27 @@ function toggleBiFields(type) {
 // ==========================================================================
 // 6. PERSISTENCIA DE DATOS LOCAL
 // ==========================================================================
+function checkUrlTicketImport() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const importData = params.get('import_req');
+        if (importData) {
+            const req = JSON.parse(decodeURIComponent(importData));
+            if (req && req.id) {
+                const exists = state.requests.some(r => r.id === req.id);
+                if (!exists) {
+                    state.requests.unshift(req);
+                    saveToStorage();
+                    syncCloudData();
+                    showToast(`✅ Solicitud ${req.id} cargada exitosamente en el portal`, 'success');
+                }
+            }
+        }
+    } catch (e) {
+        console.warn("Importación por URL no realizada:", e);
+    }
+}
+
 function loadFromStorage() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -1185,11 +1207,17 @@ function sendSubmissionConfirmationEmail(req) {
             <div><strong>Categoría:</strong> ${escapeHtml(req.category)}</div>
             <div><strong>Estudio:</strong> ${escapeHtml(req.estudio)} | <strong>País:</strong> ${escapeHtml(req.pais)}</div>
             ${req.pdvCode ? `<div><strong>Detalle / PDVs:</strong> ${escapeHtml(req.pdvCode)}</div>` : ''}
-            ${req.fileName ? `<div><strong>Archivo Adjunto:</strong> 📎 ${escapeHtml(req.fileName)}</div>` : ''}
+            ${req.fileName ? `<div><strong>Archivo Adjunto:</strong> 🖼️ ${escapeHtml(req.fileName)}</div>` : ''}
             <div><strong>Detalle del Requerimiento:</strong> "${escapeHtml(req.detalle)}"</div>
         </div>
 
-        <p style="font-size:0.8rem; color:#64748B;">Notificación enviada a: ${escapeHtml(recipientsStr)}</p>
+        <div style="margin-top:16px; text-align:center;">
+            <a href="https://reporting-dichterneira.github.io/Reporting/?import_req=${encodeURIComponent(JSON.stringify(req))}" target="_blank" style="background:#0D5CAB; color:#FFFFFF; padding:10px 18px; text-decoration:none; border-radius:6px; font-weight:bold; font-size:0.85rem; display:inline-block;">
+                🚀 Ver y Gestionar Solicitud ${escapeHtml(req.id)} en el Portal
+            </a>
+        </div>
+
+        <p style="font-size:0.8rem; color:#64748B; margin-top:12px;">Notificación enviada a: ${escapeHtml(recipientsStr)}</p>
     `;
 
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
