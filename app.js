@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v35';
+const STORAGE_KEY = 'dn_portal_requests_v36';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -471,14 +471,14 @@ function downloadRequestFile(reqId) {
 
 function renderFileChip(req) {
     if (!req.fileName) return '';
-    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|svg)$/i);
+    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
     const iconName = isImage ? 'image' : 'file-spreadsheet';
 
     return `
-        <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar ${escapeHtml(req.fileName)} completo en tu PC">
+        <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar la imagen ${escapeHtml(req.fileName)} a tu PC" style="background:rgba(13,92,171,0.12); color:var(--dn-blue-primary); border:1px solid rgba(13,92,171,0.3); font-weight:700;">
             <i data-lucide="${iconName}"></i>
-            <span>📎 ${escapeHtml(req.fileName)}</span>
-            <i data-lucide="download" style="width:12px; margin-left:4px;"></i>
+            <span>🖼️ ${escapeHtml(req.fileName)}</span>
+            <i data-lucide="download" style="width:13px; margin-left:4px;"></i>
         </button>
     `;
 }
