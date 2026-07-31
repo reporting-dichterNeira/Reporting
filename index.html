@@ -13,23 +13,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=6.0">
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body class="dn-light-theme">
-    <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
-    <div id="splash-screen" class="splash-overlay">
-        <div class="splash-content">
-            <div class="splash-logo-badge">
-                <span class="splash-dn-bold">D&N</span>
-            </div>
-            <h1 class="splash-title">Dichter & Neira</h1>
-            <p class="splash-subtitle">Portal de Solicitudes • Equipo de Reporting & Operaciones</p>
-            <div class="splash-loader-bar">
-                <div class="splash-loader-fill"></div>
-            </div>
-        </div>
-    </div>
-
     <!-- Header Principal Dichter & Neira -->
     <header class="app-header">
         <div class="logo-container">
@@ -63,10 +49,6 @@
                 <span>Mesa de Reporting</span>
                 <span id="pending-counter" class="counter-badge">0</span>
             </button>
-            <button id="nav-btn-vacaciones" class="nav-tab admin-tab hidden" onclick="switchTab('vacaciones')">
-                <i data-lucide="plane"></i>
-                <span>Gestión Vacaciones</span>
-            </button>
             <button id="nav-btn-analytics" class="nav-tab analytics-tab hidden" onclick="switchTab('analytics')">
                 <i data-lucide="bar-chart-2"></i>
                 <span>Dashboard & Analytics</span>
@@ -75,7 +57,6 @@
 
         <!-- User Session Bar -->
         <div class="user-session-bar" id="user-session-bar">
-            <span id="cloud-sync-status" class="sync-badge-status online"><span class="sync-dot-pulse"></span> Nube Conectada</span>
             <div class="user-badge-info" id="session-badge">
                 <i data-lucide="user"></i>
                 <span id="session-label">Modo Operaciones (Público)</span>
@@ -218,6 +199,7 @@
                                         <option value="CBC">CBC</option>
                                         <option value="ABI">ABI</option>
                                         <option value="AJE">AJE</option>
+                                        <option value="Customer">Customer</option>
                                         <option value="Otros">Otros</option>
                                     </select>
                                 </div>
@@ -330,12 +312,12 @@
                     <!-- Selector de Tipo de BI -->
                     <div class="type-selector-box">
                         <label class="type-option-label">Tipo de Requerimiento <span class="req">*</span></label>
-                        <div class="type-toggle-group three-cols">
+                        <div class="type-toggle-group">
                             <label class="radio-card">
                                 <input type="radio" name="biType" value="EXISTING" checked onchange="toggleBiFields('EXISTING')">
                                 <div class="radio-content">
                                     <i data-lucide="edit-3"></i>
-                                    <span>Modificación BI Existente</span>
+                                    <span>Modificación de BI Existente</span>
                                 </div>
                             </label>
                             <label class="radio-card">
@@ -343,13 +325,6 @@
                                 <div class="radio-content">
                                     <i data-lucide="sparkles"></i>
                                     <span>Power BI Nuevo</span>
-                                </div>
-                            </label>
-                            <label class="radio-card">
-                                <input type="radio" name="biType" value="SPORADIC" onchange="toggleBiFields('SPORADIC')">
-                                <div class="radio-content">
-                                    <i data-lucide="zap"></i>
-                                    <span>Solicitud Esporádica</span>
                                 </div>
                             </label>
                         </div>
@@ -382,6 +357,7 @@
                                         <option value="CBC">CBC</option>
                                         <option value="ABI">ABI</option>
                                         <option value="AJE">AJE</option>
+                                        <option value="Customer">Customer</option>
                                         <option value="Otros">Otros</option>
                                     </select>
                                 </div>
@@ -593,6 +569,76 @@
                 </div>
             </div>
 
+            <!-- GESTIÓN DE VACACIONES CON FECHAS DESPLEGABLES -->
+            <div class="clean-card admin-card" style="margin-bottom:24px;">
+                <div class="card-header">
+                    <div class="icon-header blue">
+                        <i data-lucide="calendar-heart"></i>
+                    </div>
+                    <div>
+                        <h2>Gestión de Vacaciones y Novedades de Analistas</h2>
+                        <p>Selecciona las fechas de inicio y fin para publicar vacaciones o ausencias en el portal público</p>
+                    </div>
+                </div>
+
+                <form id="form-analyst-novedad" onsubmit="handleNovedadSubmit(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nov-analyst">Analista <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="user"></i>
+                                <select id="nov-analyst" required>
+                                    <option value="Mayumi Sanchez">Mayumi Sanchez</option>
+                                    <option value="Juliana Chimbi">Juliana Chimbi</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="nov-status">Estado <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="tag"></i>
+                                <select id="nov-status" required>
+                                    <option value="DISPONIBLE">🟢 Disponible (Laborando)</option>
+                                    <option value="VACACIONES">🏖️ En Periodo de Vacaciones</option>
+                                    <option value="DIA_LIBRE">🌴 Día Libre / Ausencia Programada</option>
+                                    <option value="CAPACITACION">📚 En Capacitación / Taller</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nov-date-start">Fecha de Inicio de Vacaciones / Ausencia <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="calendar"></i>
+                                <input type="date" id="nov-date-start" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="nov-date-end">Fecha de Fin de Vacaciones / Ausencia <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="calendar"></i>
+                                <input type="date" id="nov-date-end" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="nov-note">Mensaje Informativo Público para Operaciones <span class="req">*</span></label>
+                        <div class="input-with-icon">
+                            <i data-lucide="message-square"></i>
+                            <input type="text" id="nov-note" placeholder="Ej. Durante este periodo Mayumi Sanchez estará respaldando sus tareas." required>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn-dn-primary">
+                        <i data-lucide="save"></i>
+                        <span>Publicar Novedad en la Página</span>
+                    </button>
+                </form>
             </div>
 
             <!-- Panel Consolidado -->
@@ -623,9 +669,6 @@
                             <option value="UNASSIGNED">Sin Asignar</option>
                         </select>
 
-                        <button class="btn-secondary" onclick="fetchCloudData(true)" title="Forzar sincronización desde la nube">
-                            <i data-lucide="refresh-cw"></i> Sincronizar Nube
-                        </button>
                         <button class="btn-secondary" onclick="exportToCSV()" title="Descargar reporte completo">
                             <i data-lucide="download"></i> CSV
                         </button>
@@ -656,122 +699,6 @@
                             <!-- Filas por JavaScript -->
                         </tbody>
                     </table>
-                </div>
-            </div>
-        </section>
-
-
-        <!-- ===================================================================
-             SECCIÓN NUEVA: GESTIÓN DE VACACIONES & NOVEDADES DE ANALISTAS
-             =================================================================== -->
-        <section id="tab-vacaciones" class="tab-content">
-            <div class="clean-card" style="margin-bottom:20px;">
-                <div class="card-header">
-                    <div class="icon-header purple">
-                        <i data-lucide="plane"></i>
-                    </div>
-                    <div>
-                        <h2>Gestión de Vacaciones y Novedades del Equipo</h2>
-                        <p>Página independiente para administrar ausencias, vacaciones y novedades públicas de Mayumi Sanchez y Juliana Chimbi</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="grid-two-columns">
-                <!-- Formulario Añadir Novedad / Vacaciones -->
-                <div class="clean-card form-card">
-                    <div class="card-header">
-                        <div class="icon-header blue">
-                            <i data-lucide="calendar-plus"></i>
-                        </div>
-                        <div>
-                            <h2>Registrar / Añadir Novedad</h2>
-                            <p>Ingresa las fechas y el estado para notificar al portal</p>
-                        </div>
-                    </div>
-
-                    <form id="form-analyst-novedad" onsubmit="handleNovedadSubmit(event)">
-                        <div class="form-group">
-                            <label for="nov-analyst">Analista <span class="req">*</span></label>
-                            <div class="input-with-icon">
-                                <i data-lucide="user"></i>
-                                <select id="nov-analyst" required>
-                                    <option value="Mayumi Sanchez">Mayumi Sanchez</option>
-                                    <option value="Juliana Chimbi">Juliana Chimbi</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="nov-status">Estado de Disponibilidad <span class="req">*</span></label>
-                            <div class="input-with-icon">
-                                <i data-lucide="tag"></i>
-                                <select id="nov-status" required>
-                                    <option value="VACACIONES">🏖️ En Periodo de Vacaciones</option>
-                                    <option value="DIA_LIBRE">🌴 Día Libre / Ausencia Programada</option>
-                                    <option value="CAPACITACION">📚 En Capacitación / Taller</option>
-                                    <option value="DISPONIBLE">🟢 Disponible (Laborando)</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="nov-date-start">Fecha de Inicio <span class="req">*</span></label>
-                                <div class="input-with-icon">
-                                    <i data-lucide="calendar"></i>
-                                    <input type="date" id="nov-date-start" required>
-                                </div>
-                            </div>
-
-                            <div class="form-group">
-                                <label for="nov-date-end">Fecha de Fin <span class="req">*</span></label>
-                                <div class="input-with-icon">
-                                    <i data-lucide="calendar"></i>
-                                    <input type="date" id="nov-date-end" required>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="form-group">
-                            <label for="nov-note">Novedad / Mensaje Público <span class="req">*</span></label>
-                            <textarea id="nov-note" rows="3" placeholder="Ej. Durante estos días Mayumi Sanchez estará atendiendo y respaldando sus tareas." required></textarea>
-                        </div>
-
-                        <button type="submit" class="btn-dn-primary full-width">
-                            <i data-lucide="plus-circle"></i>
-                            <span>Añadir / Guardar Novedad</span>
-                        </button>
-                    </form>
-                </div>
-
-                <!-- Tabla de Novedades y Vacaciones Registradas -->
-                <div class="clean-card">
-                    <div class="card-header space-between">
-                        <div>
-                            <h2>Vacaciones Registradas</h2>
-                            <p>Listado para modificar o eliminar ausencias</p>
-                        </div>
-                        <button class="btn-secondary btn-sm" onclick="renderVacacionesAdminTable()">
-                            <i data-lucide="refresh-cw"></i>
-                        </button>
-                    </div>
-
-                    <div class="table-container">
-                        <table class="dn-table">
-                            <thead>
-                                <tr>
-                                    <th>Analista</th>
-                                    <th>Estado</th>
-                                    <th>Periodo</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="vacaciones-admin-table-body">
-                                <!-- Generado por JS -->
-                            </tbody>
-                        </table>
-                    </div>
                 </div>
             </div>
         </section>
@@ -1001,6 +928,7 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=12.0"></script>
+    <script src="app.js"></script>
 </body>
 </html>
+
