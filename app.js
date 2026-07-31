@@ -378,6 +378,42 @@ function dataURLtoBlob(dataurl) {
     }
 }
 
+function waitForAttachmentStorage(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function storeAttachmentChunk(chunk) {
+    const maxAttempts = 6;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const response = await fetch(ATTACHMENT_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ chunk })
+        });
+
+        const location = response.headers.get('Location');
+        if (response.ok && location) {
+            return new URL(location, ATTACHMENT_API_URL).href;
+        }
+
+        if (response.status === 429 && attempt < maxAttempts - 1) {
+            const retryAfterSeconds = Number(response.headers.get('Retry-After'));
+            const delayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+                ? retryAfterSeconds * 1000
+                : 2000 * (attempt + 1);
+            await waitForAttachmentStorage(delayMs);
+            continue;
+        }
+
+        const errorText = await response.text();
+        throw new Error(`Attachment server returned ${response.status}: ${errorText}`);
+    }
+}
+
 async function uploadRequestAttachment(req) {
     if (!req?.fileDataUrl || req.fileUrl || req.fileChunks?.length) {
         return req?.fileUrl || req?.fileChunks || null;
@@ -390,20 +426,7 @@ async function uploadRequestAttachment(req) {
 
     const fileChunks = [];
     for (const chunk of chunks) {
-        const response = await fetch(ATTACHMENT_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify({ chunk })
-        });
-
-        const location = response.headers.get('Location');
-        if (!response.ok || !location) {
-            throw new Error(`Attachment server returned ${response.status}`);
-        }
-        fileChunks.push(new URL(location, ATTACHMENT_API_URL).href);
+        fileChunks.push(await storeAttachmentChunk(chunk));
     }
 
     req.fileChunks = fileChunks;
