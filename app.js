@@ -7,6 +7,7 @@ const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 const ATTACHMENT_API_URL = 'https://jsonblob.com/api/jsonBlob';
+const ATTACHMENT_CHUNK_CHARS = 7000;
 
 // BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
 const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fb398-a51c-79af-a1fd-c0095e6459fe';
@@ -207,6 +208,9 @@ function mergeRequests(localArr, cloudArr) {
             const mergedReq = { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl };
             // A stale local copy must not erase the independently stored attachment URL.
             if (!mergedReq.fileUrl && cloudReq.fileUrl) mergedReq.fileUrl = cloudReq.fileUrl;
+            if (!mergedReq.fileChunks?.length && cloudReq.fileChunks?.length) {
+                mergedReq.fileChunks = cloudReq.fileChunks;
+            }
             map.set(cloudReq.id, mergedReq);
         }
     });
@@ -375,34 +379,38 @@ function dataURLtoBlob(dataurl) {
 }
 
 async function uploadRequestAttachment(req) {
-    if (!req?.fileDataUrl || req.fileUrl) return req?.fileUrl || null;
-
-    const response = await fetch(ATTACHMENT_API_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-            fileName: req.fileName,
-            fileDataUrl: req.fileDataUrl,
-            uploadedAt: new Date().toISOString()
-        })
-    });
-
-    const location = response.headers.get('Location');
-    if (!response.ok || !location) {
-        throw new Error(`Attachment server returned ${response.status}`);
+    if (!req?.fileDataUrl || req.fileUrl || req.fileChunks?.length) {
+        return req?.fileUrl || req?.fileChunks || null;
     }
 
-    // JSONBlob currently returns a relative Location header. Resolve it against
-    // the API domain so a page hosted on another domain can download the file.
-    const fileUrl = new URL(location, ATTACHMENT_API_URL).href;
-    req.fileUrl = fileUrl;
+    const chunks = [];
+    for (let start = 0; start < req.fileDataUrl.length; start += ATTACHMENT_CHUNK_CHARS) {
+        chunks.push(req.fileDataUrl.slice(start, start + ATTACHMENT_CHUNK_CHARS));
+    }
+
+    const fileChunks = [];
+    for (const chunk of chunks) {
+        const response = await fetch(ATTACHMENT_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ chunk })
+        });
+
+        const location = response.headers.get('Location');
+        if (!response.ok || !location) {
+            throw new Error(`Attachment server returned ${response.status}`);
+        }
+        fileChunks.push(new URL(location, ATTACHMENT_API_URL).href);
+    }
+
+    req.fileChunks = fileChunks;
     // A remote, byte-for-byte copy exists now. Keeping Base64 in localStorage
     // risks exceeding its quota and corrupting future ticket synchronization.
     req.fileDataUrl = null;
-    return fileUrl;
+    return fileChunks;
 }
 
 function triggerBlobDownload(blob, filename) {
@@ -468,7 +476,28 @@ async function downloadRequestFile(reqId) {
         }
     }
 
-    // Load the exact original binary from its independent attachment record.
+    // Rebuild the exact original binary from the independent attachment chunks.
+    if (Array.isArray(req.fileChunks) && req.fileChunks.length > 0) {
+        try {
+            const chunks = await Promise.all(req.fileChunks.map(async fileUrl => {
+                const response = await fetch(fileUrl, { cache: 'no-store' });
+                if (!response.ok) throw new Error(`Response ${response.status}`);
+                const storedChunk = await response.json();
+                if (typeof storedChunk.chunk !== 'string') throw new Error('Invalid stored chunk');
+                return storedChunk.chunk;
+            }));
+            const blob = dataURLtoBlob(chunks.join(''));
+            if (!blob) throw new Error('Invalid reconstructed file');
+
+            triggerBlobDownload(blob, req.fileName);
+            showToast(`Descargando archivo completo original: ${req.fileName}`, 'success');
+            return;
+        } catch (e) {
+            console.error('Error downloading original attachment chunks:', e);
+        }
+    }
+
+    // Compatibility with attachments stored as one independent record.
     if (req.fileUrl) {
         try {
             const response = await fetch(req.fileUrl, { cache: 'no-store' });
