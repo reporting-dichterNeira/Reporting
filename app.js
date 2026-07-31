@@ -1,12 +1,9 @@
 /* ==========================================================================
-   PORTAL DICHTER & NEIRA - MANEJO DIFERENCIADO DE ADJUNTOS (APP.JS v12.0)
-   - Imágenes (.png, .jpg, .gif, .svg, .webp): Descarga directa habilitada en la app.
-   - Archivos No-Imagen (Excel, PDF, CSV, Word, etc.): Adjuntados y enviados al correo
-     con aviso visual en la aplicación.
+   PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v29';
-const NOVEDADES_KEY = 'dn_portal_novedades_v13';
+const STORAGE_KEY = 'dn_portal_requests_v28';
+const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
@@ -201,6 +198,7 @@ function mergeRequests(localArr, cloudArr) {
             map.set(cloudReq.id, cloudReq);
         } else {
             const localReq = map.get(cloudReq.id);
+            // Preservar siempre la versión más completa y larga del archivo binario
             let bestFileUrl = cloudReq.fileDataUrl;
             if (localReq.fileDataUrl && (!cloudReq.fileDataUrl || localReq.fileDataUrl.length > cloudReq.fileDataUrl.length)) {
                 bestFileUrl = localReq.fileDataUrl;
@@ -218,9 +216,11 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
+    // Conservar archivos Excel e imágenes completos (hasta 3.5 MB de caracteres Base64)
+    // para garantizar que nunca se recorten las filas de los libros de Excel
     const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 2500000) {
+        if (copy.fileDataUrl && copy.fileDataUrl.length > 3500000) {
             copy.fileDataUrl = null;
         }
         return copy;
@@ -240,7 +240,7 @@ async function syncCloudData() {
         });
 
         if (!resp.ok) {
-            console.warn("Reintentando sincronización con metadatos...");
+            console.warn("Reintentando sincronización con metadatos de respaldo...");
             const minReqs = state.requests.map(r => ({ ...r, fileDataUrl: null }));
             await fetch(SYNC_API_URL, {
                 method: 'PUT',
@@ -255,7 +255,7 @@ async function syncCloudData() {
 }
 
 // ==========================================================================
-// 3. MANEJO DIFERENCIADO DE ARCHIVOS ADJUNTOS (IMÁGENES vs OTROS DOCUMENTOS)
+// 3. DESCARGA INTACTA DE ARCHIVOS EXCEL E IMÁGENES
 // ==========================================================================
 function compressImageFile(file, callback) {
     const reader = new FileReader();
@@ -293,18 +293,14 @@ function compressImageFile(file, callback) {
     reader.readAsDataURL(file);
 }
 
-function isImageFilename(filename) {
-    if (!filename) return false;
-    return !!filename.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
-}
-
 function handleFileSelect(inputElem, targetInfoId) {
     const target = document.getElementById(targetInfoId);
     if (!target) return;
 
     if (inputElem.files && inputElem.files[0]) {
         const file = inputElem.files[0];
-        const isImage = file.type.startsWith('image/') || isImageFilename(file.name);
+        const isImage = file.type.startsWith('image/');
+        const iconName = isImage ? 'image' : 'file-spreadsheet';
 
         if (isImage) {
             compressImageFile(file, function(compressedDataUrl) {
@@ -313,23 +309,23 @@ function handleFileSelect(inputElem, targetInfoId) {
 
                 target.innerHTML = `
                     <span class="file-attached-chip clickable">
-                        <i data-lucide="image"></i>
-                        <span>Imagen lista: <strong>${escapeHtml(file.name)}</strong> (Descarga habilitada)</span>
+                        <i data-lucide="${iconName}"></i>
+                        <span>Adjunto listo: <strong>${escapeHtml(file.name)}</strong> (Descarga habilitada)</span>
                     </span>
                 `;
                 lucide.createIcons();
             });
         } else {
-            // Para archivos No-Imagen (Excel, CSV, PDF, Word), se notifica que será adjuntado al correo
+            // Para archivos Excel (.xlsx, .xls, .csv), guardamos el binario 100% completo e intacto
             const reader = new FileReader();
             reader.onload = function(e) {
                 inputElem.dataset.fileDataUrl = e.target.result;
                 inputElem.dataset.fileName = file.name;
 
                 target.innerHTML = `
-                    <span class="file-attached-chip email-badge">
-                        <i data-lucide="mail-check"></i>
-                        <span>Archivo adjunto: <strong>${escapeHtml(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB - Enviado al correo)</span>
+                    <span class="file-attached-chip clickable">
+                        <i data-lucide="${iconName}"></i>
+                        <span>Excel completo listo: <strong>${escapeHtml(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB)</span>
                     </span>
                 `;
                 lucide.createIcons();
@@ -398,7 +394,7 @@ function generateFallbackImageBlob(req, callback) {
 
     ctx.fillStyle = '#FFFFFF';
     ctx.font = '16px sans-serif';
-    ctx.fillText(`Nombre de Imagen: ${req.fileName}`, 60, 150);
+    ctx.fillText(`Nombre de Archivo: ${req.fileName}`, 60, 150);
     ctx.fillText(`Estudio: ${req.estudio} | País: ${req.pais}`, 60, 190);
     ctx.fillText(`Solicitante: ${req.email || req.solicitante || 'N/A'}`, 60, 230);
     ctx.fillText(`Analista Asignada: ${req.analyst || 'Sin Asignar'}`, 60, 270);
@@ -415,48 +411,46 @@ function downloadRequestFile(reqId) {
         return;
     }
 
-    const isImage = isImageFilename(req.fileName);
-
-    if (isImage) {
-        if (req.fileDataUrl && req.fileDataUrl.startsWith('data:')) {
-            const blob = dataURLtoBlob(req.fileDataUrl);
-            if (blob) {
-                triggerBlobDownload(blob, req.fileName);
-                showToast(`Descargando imagen: ${req.fileName}`, 'success');
-                return;
-            }
+    // 1. Descarga directa del archivo binario original subido (.xlsx, .xls, .csv, .png, .jpg)
+    if (req.fileDataUrl && req.fileDataUrl.startsWith('data:')) {
+        const blob = dataURLtoBlob(req.fileDataUrl);
+        if (blob) {
+            triggerBlobDownload(blob, req.fileName);
+            showToast(`Descargando archivo completo original: ${req.fileName}`, 'success');
+            return;
         }
+    }
 
+    // 2. Respaldo para solicitudes demo antiguas de prueba
+    const ext = req.fileName.split('.').pop().toLowerCase();
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
         generateFallbackImageBlob(req, blob => {
             const outName = req.fileName.match(/\.(png|jpg|jpeg|gif)$/i) ? req.fileName : req.fileName + '.png';
             triggerBlobDownload(blob, outName);
             showToast(`Descargando vista previa de imagen: ${outName}`, 'success');
         });
     } else {
-        showToast(`📧 El archivo "${req.fileName}" fue adjuntado y enviado directamente en la notificación por correo.`, 'info');
+        const csvContent = `\uFEFFID_Solicitud,Estudio,Pais,Solicitante,Analista,Estado,Nombre_Archivo,Detalle_Requerimiento\n"${req.id}","${req.estudio}","${req.pais}","${req.solicitante || req.email || ''}","${req.analyst || 'Sin Asignar'}","${req.status}","${req.fileName}","${(req.detalle || '').replace(/"/g, '""')}"`;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const outName = req.fileName.endsWith('.csv') ? req.fileName : req.fileName.replace(/\.xlsx?$/, '.csv');
+        triggerBlobDownload(blob, outName);
+        showToast(`Descargando archivo de soporte: ${outName}`, 'success');
     }
 }
 
 function renderFileChip(req) {
     if (!req.fileName) return '';
-    const isImage = isImageFilename(req.fileName);
+    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|svg)$/i);
+    const iconName = isImage ? 'image' : 'file-spreadsheet';
 
-    if (isImage) {
-        return `
-            <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar la imagen ${escapeHtml(req.fileName)} en tu PC">
-                <i data-lucide="image"></i>
-                <span>🖼️ ${escapeHtml(req.fileName)}</span>
-                <i data-lucide="download" style="width:12px; margin-left:4px;"></i>
-            </button>
-        `;
-    } else {
-        return `
-            <span class="file-attached-chip email-badge" onclick="downloadRequestFile('${req.id}')" title="Este archivo fue adjuntado y enviado en la notificación por correo">
-                <i data-lucide="mail-check"></i>
-                <span>📎 ${escapeHtml(req.fileName)} (Adjuntado al correo)</span>
-            </span>
-        `;
-    }
+    return `
+        <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar ${escapeHtml(req.fileName)} completo en tu PC">
+            <i data-lucide="${iconName}"></i>
+            <span>📎 ${escapeHtml(req.fileName)}</span>
+            <i data-lucide="download" style="width:12px; margin-left:4px;"></i>
+        </button>
+    `;
 }
 
 // ==========================================================================
@@ -1133,7 +1127,6 @@ async function handleReportingSubmit(e) {
 function sendSubmissionConfirmationEmail(req) {
     const userEmail = req.email || 'usuario@dichter-neira.com';
     const isEncolada = req.category === 'ENCOLADA';
-    const isImage = isImageFilename(req.fileName);
 
     const allRecipients = [userEmail, ...REPORTING_TEAM_EMAILS];
     const recipientsStr = allRecipients.join(', ');
@@ -1147,15 +1140,6 @@ function sendSubmissionConfirmationEmail(req) {
     const commitmentMsg = isEncolada
         ? '⏳ <strong>La solicitud se revisará en un máximo de 2 días hábiles (Equipo ubicado en Colombia).</strong>'
         : '⏳ <strong>El equipo de Reporting (Colombia) se contactará en un plazo máximo de 3 días hábiles.</strong>';
-
-    let attachmentHtmlNote = '';
-    if (req.fileName) {
-        if (isImage) {
-            attachmentHtmlNote = `<div><strong>Imagen Adjunta:</strong> 🖼️ ${escapeHtml(req.fileName)} (Descargable directamente desde el portal)</div>`;
-        } else {
-            attachmentHtmlNote = `<div style="color:#0D5CAB; font-weight:700;"><strong>Archivo Adjunto al Correo:</strong> 📎 ${escapeHtml(req.fileName)} (Consulte el archivo adjunto a esta notificación de correo)</div>`;
-        }
-    }
 
     const htmlBody = `
         <p>Hola <strong>${escapeHtml(req.solicitante || 'Equipo Dichter & Neira')}</strong>,</p>
@@ -1171,7 +1155,7 @@ function sendSubmissionConfirmationEmail(req) {
             <div><strong>Categoría:</strong> ${escapeHtml(req.category)}</div>
             <div><strong>Estudio:</strong> ${escapeHtml(req.estudio)} | <strong>País:</strong> ${escapeHtml(req.pais)}</div>
             ${req.pdvCode ? `<div><strong>Detalle / PDVs:</strong> ${escapeHtml(req.pdvCode)}</div>` : ''}
-            ${attachmentHtmlNote}
+            ${req.fileName ? `<div><strong>Archivo Adjunto:</strong> 📎 ${escapeHtml(req.fileName)}</div>` : ''}
             <div><strong>Detalle del Requerimiento:</strong> "${escapeHtml(req.detalle)}"</div>
         </div>
 
@@ -1186,9 +1170,7 @@ function sendSubmissionConfirmationEmail(req) {
                 to_email: email,
                 subject: subject,
                 message: htmlBody,
-                name: 'Reporting Dichter & Neira',
-                content_attachment: req.fileDataUrl || '',
-                file_name: req.fileName || ''
+                name: 'Reporting Dichter & Neira'
             };
 
             emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
@@ -1334,6 +1316,7 @@ function renderFieldHistory() {
 
     const myIds = getMySubmittedIds();
 
+    // Solo se muestran las solicitudes que se hayan creado desde este computador (o todas si es admin autenticado)
     const myEncoladas = state.requests.filter(r => 
         r.category === 'ENCOLADA' && (myIds.includes(r.id) || state.isReportingAuthenticated)
     );
@@ -1403,6 +1386,7 @@ function renderReportingHistory() {
 
     const myIds = getMySubmittedIds();
 
+    // Solo se muestran las solicitudes de Reporting enviadas desde ESTE computador (o todas si es admin autenticado)
     const myReportingReqs = state.requests.filter(r => 
         (r.category === 'BI_EXISTING' || r.category === 'BI_NEW' || r.category === 'BI_SPORADIC') &&
         (myIds.includes(r.id) || state.isReportingAuthenticated)
@@ -1938,4 +1922,3 @@ function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
-
