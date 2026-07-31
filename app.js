@@ -153,7 +153,8 @@ async function fetchCloudData(userTriggered = false) {
             let updated = false;
 
             if (data && Array.isArray(data.requests)) {
-                state.requests = mergeRequests(state.requests, data.requests);
+                const indexedRequests = await loadIndexedRequests(data.requestIndex);
+                state.requests = mergeRequests(state.requests, [...data.requests, ...indexedRequests]);
                 saveToStorage();
                 updated = true;
             }
@@ -162,6 +163,12 @@ async function fetchCloudData(userTriggered = false) {
                 state.analystStatus = data.analystStatus;
                 saveNovedadesToStorage();
                 updated = true;
+            }
+
+            // A ticket submitted while the shared index was full may exist only
+            // in this browser. Retry it automatically after the upgraded page loads.
+            if (state.requests.some(req => req.fileChunks?.length && !req.recordUrl)) {
+                syncCloudData();
             }
 
             if (updated) {
@@ -211,6 +218,7 @@ function mergeRequests(localArr, cloudArr) {
             if (!mergedReq.fileChunks?.length && cloudReq.fileChunks?.length) {
                 mergedReq.fileChunks = cloudReq.fileChunks;
             }
+            if (!mergedReq.recordUrl && cloudReq.recordUrl) mergedReq.recordUrl = cloudReq.recordUrl;
             map.set(cloudReq.id, mergedReq);
         }
     });
@@ -236,9 +244,19 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
-    // The ticket stores only the attachment URL; its original binary is in the
-    // independent attachment resource.
-    const sanitizedRequests = state.requests.map(r => {
+    // Tickets with attachments are stored independently; this keeps the shared
+    // index small enough for every computer to receive new requests.
+    const indexedRequests = state.requests.filter(req => req.recordUrl || req.fileChunks?.length);
+    try {
+        await Promise.all(indexedRequests.map(req => persistRequestRecord(req)));
+    } catch (e) {
+        console.error('Unable to store ticket record before sync:', e);
+        showToast('No se pudo sincronizar el ticket con la nube.', 'error');
+        return false;
+    }
+    saveToStorage();
+
+    const sanitizedRequests = state.requests.filter(req => !req.recordUrl).map(r => {
         const copy = { ...r };
         copy.fileDataUrl = null;
         return copy;
@@ -246,6 +264,7 @@ async function syncCloudData() {
 
     const payload = {
         requests: sanitizedRequests,
+        requestIndex: indexedRequests.map(req => ({ id: req.id, recordUrl: req.recordUrl })),
         analystStatus: state.analystStatus,
         lastUpdated: new Date().toISOString()
     };
@@ -259,12 +278,12 @@ async function syncCloudData() {
 
         if (!resp.ok) {
             console.warn("Reintentando sincronización con metadatos de respaldo...");
-            const minReqs = state.requests.map(r => ({ ...r, fileDataUrl: null }));
-            await fetch(SYNC_API_URL, {
+            const fallback = await fetch(SYNC_API_URL, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ requests: minReqs, analystStatus: state.analystStatus, lastUpdated: new Date().toISOString() })
+                body: JSON.stringify({ requests: sanitizedRequests, requestIndex: indexedRequests.map(req => ({ id: req.id, recordUrl: req.recordUrl })), analystStatus: state.analystStatus, lastUpdated: new Date().toISOString() })
             });
+            if (!fallback.ok) throw new Error(`Shared database returned ${fallback.status}`);
         }
         console.log("✅ Datos sincronizados correctamente en la nube.");
         return true;
@@ -380,6 +399,56 @@ function dataURLtoBlob(dataurl) {
 
 function waitForAttachmentStorage(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function loadIndexedRequests(index) {
+    if (!Array.isArray(index) || index.length === 0) return [];
+
+    const results = await Promise.all(index.map(async entry => {
+        if (!entry?.recordUrl) return null;
+        try {
+            const response = await fetch(entry.recordUrl, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Response ${response.status}`);
+            const stored = await response.json();
+            return stored?.request ? { ...stored.request, recordUrl: entry.recordUrl } : null;
+        } catch (e) {
+            console.warn('Could not load indexed ticket:', entry.id, e);
+            return null;
+        }
+    }));
+
+    return results.filter(Boolean);
+}
+
+async function persistRequestRecord(req) {
+    const maxAttempts = 6;
+    const method = req.recordUrl ? 'PUT' : 'POST';
+    const targetUrl = req.recordUrl || ATTACHMENT_API_URL;
+    const requestCopy = { ...req, fileDataUrl: null };
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        const response = await fetch(targetUrl, {
+            method,
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ request: requestCopy })
+        });
+
+        if (response.ok) {
+            if (!req.recordUrl) {
+                const location = response.headers.get('Location');
+                if (!location) throw new Error('Ticket record did not return a location');
+                req.recordUrl = new URL(location, ATTACHMENT_API_URL).href;
+            }
+            return req.recordUrl;
+        }
+
+        if (response.status === 429 && attempt < maxAttempts - 1) {
+            await waitForAttachmentStorage(2000 * (attempt + 1));
+            continue;
+        }
+
+        throw new Error(`Ticket record returned ${response.status}: ${await response.text()}`);
+    }
 }
 
 async function storeAttachmentChunk(chunk) {
