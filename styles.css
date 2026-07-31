@@ -1336,3 +1336,5 @@ input:focus, select:focus, textarea:focus {
 .email-card-box { background: #FFFFFF; border-left: 4px solid var(--dn-blue-primary); padding: 12px; margin: 12px 0; border-radius: 4px; }
 .email-ticket-highlight { background: rgba(20, 168, 59, 0.1); border: 1px dashed var(--dn-green); padding: 12px; text-align: center; border-radius: 8px; margin: 12px 0; }
 .ticket-code-big { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 800; color: var(--dn-green); }
+
+
