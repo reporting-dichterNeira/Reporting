@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v28';
+const STORAGE_KEY = 'dn_portal_requests_v35';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchCloudData(userTriggered = false) {
     const syncBadge = document.getElementById('cloud-sync-status');
     try {
-        const resp = await fetch(SYNC_API_URL, { cache: 'no-store' });
+        const resp = await fetch(SYNC_API_URL + '?t=' + Date.now(), { cache: 'no-store' });
         if (resp.ok) {
             const data = await resp.json();
             
