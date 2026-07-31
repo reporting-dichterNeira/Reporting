@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal de Solicitudes y Encoladas | Dichter & Neira</title>
+    <!-- Google Fonts & Lucide Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- EmailJS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <link rel="stylesheet" href="styles.css?v=6.0">
+</head>
+<body class="dn-light-theme">
+    <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
+    <div id="splash-screen" class="splash-overlay">
+        <div class="splash-content">
+            <div class="splash-logo-badge">
+                <span class="splash-dn-bold">D&N</span>
+            </div>
+            <h1 class="splash-title">Dichter & Neira</h1>
+            <p class="splash-subtitle">Portal de Solicitudes • Equipo de Reporting & Operaciones</p>
+            <div class="splash-loader-bar">
+                <div class="splash-loader-fill"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Principal Dichter & Neira -->
+    <header class="app-header">
+        <div class="logo-container">
+            <div class="dn-logo-badge">
+                <span class="dn-bold">D&N</span>
+            </div>
+            <div class="logo-text-group">
+                <h1 class="logo-title">Dichter & Neira <span class="badge-tag">Reporting Portal</span></h1>
+                <p class="logo-subtitle">Plataforma de Solicitudes y Gestión de Encoladas</p>
+            </div>
+        </div>
+
+        <!-- Menú Navegación Principal -->
+        <nav class="main-nav" id="main-nav">
+            <button id="nav-btn-encoladas" class="nav-tab active" onclick="switchTab('encoladas')">
+                <i data-lucide="radio"></i>
+                <span>Encoladas PDV</span>
+            </button>
+            <button id="nav-btn-reporting" class="nav-tab" onclick="switchTab('reporting')">
+                <i data-lucide="file-text"></i>
+                <span>Solicitudes Reporting (BI)</span>
+            </button>
+            <button id="nav-btn-novedades" class="nav-tab" onclick="switchTab('novedades')">
+                <i data-lucide="megaphone"></i>
+                <span>Novedades & Festivos</span>
+            </button>
+
+            <!-- Pestañas de Reporting (Ocultas por defecto hasta autenticar) -->
+            <button id="nav-btn-admin" class="nav-tab admin-tab hidden" onclick="switchTab('admin')">
+                <i data-lucide="shield-check"></i>
+                <span>Mesa de Reporting</span>
+                <span id="pending-counter" class="counter-badge">0</span>
+            </button>
+            <button id="nav-btn-vacaciones" class="nav-tab admin-tab hidden" onclick="switchTab('vacaciones')">
+                <i data-lucide="plane"></i>
+                <span>Gestión Vacaciones</span>
+            </button>
+            <button id="nav-btn-analytics" class="nav-tab analytics-tab hidden" onclick="switchTab('analytics')">
+                <i data-lucide="bar-chart-2"></i>
+                <span>Dashboard & Analytics</span>
+            </button>
+        </nav>
+
+        <!-- User Session Bar -->
+        <div class="user-session-bar" id="user-session-bar">
+            <span id="cloud-sync-status" class="sync-badge-status online"><span class="sync-dot-pulse"></span> Nube Conectada</span>
+            <div class="user-badge-info" id="session-badge">
+                <i data-lucide="user"></i>
+                <span id="session-label">Modo Operaciones (Público)</span>
+            </div>
+            <button id="btn-reporting-login" class="btn-reporting-access" onclick="openReportingAuthModal()">
+                <i data-lucide="key"></i> Acceso Reporting
+            </button>
+            <button id="btn-logout" class="btn-logout hidden" onclick="logoutReporting()">
+                <i data-lucide="log-out"></i> Salir de Admin
+            </button>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- BANNER DE ALERTA DE NOVEDAD DE HOY / BIENVENIDA -->
+        <div id="today-alert-banner" class="today-alert-banner hidden">
+            <div class="today-banner-content">
+                <div class="today-banner-icon" id="today-banner-icon">
+                    <i data-lucide="bell"></i>
+                </div>
+                <div>
+                    <h4 id="today-banner-title">📢 Novedad Importante del Día</h4>
+                    <p id="today-banner-msg">Cargando novedad del día...</p>
+                </div>
+            </div>
+            <button class="today-banner-close" onclick="closeTodayBanner()">&times;</button>
+        </div>
+
+        <!-- ===================================================================
+             SECCIÓN 1: APARTADO DE ENCOLADAS PDV (VISTA OPERACIONES)
+             =================================================================== -->
+        <section id="tab-encoladas" class="tab-content active">
+            <!-- MINI DASHBOARD DE ENCOLADAS DE OPERACIONES -->
+            <div class="mini-dashboard-container clean-card">
+                <div class="dash-title-row">
+                    <div class="dash-title">
+                        <i data-lucide="pie-chart"></i>
+                        <h3>Resumen de Encoladas Enviadas</h3>
+                    </div>
+                    <span class="badge-total-encoladas" id="dash-total-count">Total: 0 encoladas</span>
+                </div>
+
+                <div class="mini-dash-grid">
+                    <div class="dash-stat-box">
+                        <span class="dash-box-label"><i data-lucide="globe"></i> Top Países</span>
+                        <div id="breakdown-pais" class="breakdown-list"></div>
+                    </div>
+                    <div class="dash-stat-box">
+                        <span class="dash-box-label"><i data-lucide="database"></i> Top Estudios</span>
+                        <div id="breakdown-estudio" class="breakdown-list"></div>
+                    </div>
+                    <div class="dash-stat-box">
+                        <span class="dash-box-label"><i data-lucide="calendar"></i> Por Ola (Mes)</span>
+                        <div id="breakdown-ola" class="breakdown-list"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-two-columns">
+                <!-- Formulario Encoladas -->
+                <div class="clean-card form-card">
+                    <div class="card-header">
+                        <div class="icon-header blue">
+                            <i data-lucide="alert-circle"></i>
+                        </div>
+                        <div>
+                            <h2>Reportar PDV Encolado / Revisión General</h2>
+                            <p>Diligencia los datos para revisión del estudio o PDVs específicos</p>
+                        </div>
+                    </div>
+
+                    <!-- SELECTOR DE TIPO DE ENCOLADA -->
+                    <div class="type-selector-box">
+                        <label class="type-option-label">Modalidad de Solicitud de Encolada <span class="req">*</span></label>
+                        <div class="type-toggle-group">
+                            <label class="radio-card">
+                                <input type="radio" name="encType" value="SPECIFIC_PDVS" checked onchange="toggleEncFields('SPECIFIC_PDVS')">
+                                <div class="radio-content">
+                                    <i data-lucide="credit-card"></i>
+                                    <span>Tengo Código(s) de PDVs</span>
+                                </div>
+                            </label>
+                            <label class="radio-card">
+                                <input type="radio" name="encType" value="GENERAL_STUDY" onchange="toggleEncFields('GENERAL_STUDY')">
+                                <div class="radio-content">
+                                    <i data-lucide="search"></i>
+                                    <span>Revisión General de Estudio</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <form id="form-encoladas" onsubmit="handleEncoladaSubmit(event)">
+                        <!-- CAMPO PARA MÚLTIPLES CÓDIGOS DE PDV -->
+                        <div id="fields-specific-pdv" class="form-group conditional-block">
+                            <label for="enc-pdvs">Códigos de PDV (Puedes ingresar uno o varios) <span class="req">*</span></label>
+                            <textarea id="enc-pdvs" rows="2" placeholder="Ej. PDV-77401, PDV-88412, PDV-33104 (separados por coma, espacio o salto de línea)" required></textarea>
+                            <small style="color:var(--text-muted); font-size:0.75rem;">💡 Puedes pegar una lista completa de códigos de PDV.</small>
+                        </div>
+
+                        <!-- MENSAJE INFORMATIVO PARA REVISIÓN GENERAL -->
+                        <div id="fields-general-study" class="form-group conditional-block hidden">
+                            <div class="info-alert-box">
+                                <i data-lucide="info"></i>
+                                <span>Se enviará una solicitud al equipo de soporte para revisar <strong>todas las encoladas activas</strong> del estudio y país seleccionado.</span>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="enc-email">Correo Electrónico (Notificaciones) <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="mail"></i>
+                                    <input type="email" id="enc-email" placeholder="tu.nombre@dichter-neira.com" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="enc-solicitante">Nombre del Solicitante</label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="user"></i>
+                                    <input type="text" id="enc-solicitante" placeholder="Ej. Ana María Gómez">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="enc-estudio">Estudio <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="database"></i>
+                                    <select id="enc-estudio" required>
+                                        <option value="">-- Seleccionar Estudio --</option>
+                                        <option value="KO moderno">KO moderno</option>
+                                        <option value="KO tradicional">KO tradicional</option>
+                                        <option value="Lindley">Lindley</option>
+                                        <option value="Heineken">Heineken</option>
+                                        <option value="Storelive">Storelive</option>
+                                        <option value="P&G">P&G</option>
+                                        <option value="CBC">CBC</option>
+                                        <option value="ABI">ABI</option>
+                                        <option value="AJE">AJE</option>
+                                        <option value="Otros">Otros</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="enc-pais">País <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="globe"></i>
+                                    <select id="enc-pais" required>
+                                        <option value="">-- Seleccionar País --</option>
+                                        <option value="Bolivia">Bolivia</option>
+                                        <option value="Chile">Chile</option>
+                                        <option value="Colombia">Colombia</option>
+                                        <option value="Costa Rica">Costa Rica</option>
+                                        <option value="Ecuador">Ecuador</option>
+                                        <option value="El Salvador">El Salvador</option>
+                                        <option value="Guatemala">Guatemala</option>
+                                        <option value="Honduras">Honduras</option>
+                                        <option value="Nicaragua">Nicaragua</option>
+                                        <option value="Panamá">Panamá</option>
+                                        <option value="Paraguay">Paraguay</option>
+                                        <option value="Perú">Perú</option>
+                                        <option value="República Dominicana">República Dominicana</option>
+                                        <option value="Uruguay">Uruguay</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="enc-ola">Ola (Mes del Año) <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="calendar"></i>
+                                <select id="enc-ola" required>
+                                    <option value="">-- Seleccionar Mes / Ola --</option>
+                                    <option value="Enero 2026">Enero 2026</option>
+                                    <option value="Febrero 2026">Febrero 2026</option>
+                                    <option value="Marzo 2026">Marzo 2026</option>
+                                    <option value="Abril 2026">Abril 2026</option>
+                                    <option value="Mayo 2026">Mayo 2026</option>
+                                    <option value="Junio 2026">Junio 2026</option>
+                                    <option value="Julio 2026" selected>Julio 2026</option>
+                                    <option value="Agosto 2026">Agosto 2026</option>
+                                    <option value="Septiembre 2026">Septiembre 2026</option>
+                                    <option value="Octubre 2026">Octubre 2026</option>
+                                    <option value="Noviembre 2026">Noviembre 2026</option>
+                                    <option value="Diciembre 2026">Diciembre 2026</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="enc-observaciones">Detalle / Observación adicional</label>
+                            <textarea id="enc-observaciones" rows="2" placeholder="Ej. Favor revisar si hay transacciones encoladas pendientes de conciliar..."></textarea>
+                        </div>
+
+                        <!-- CARGA DE ARCHIVOS (EXCEL O FOTO) EN ENCOLADAS -->
+                        <div class="form-group">
+                            <label for="enc-file">Adjuntar Archivo de Soporte (Excel o Foto / Imagen)</label>
+                            <div class="input-with-icon">
+                                <i data-lucide="paperclip"></i>
+                                <input type="file" id="enc-file" accept=".xlsx, .xls, .csv, image/*" onchange="handleFileSelect(this, 'enc-file-info')">
+                            </div>
+                            <div id="enc-file-info" class="file-attached-info"></div>
+                        </div>
+
+                        <button type="submit" class="btn-dn-primary full-width">
+                            <i data-lucide="send"></i>
+                            <span>Enviar Solicitud de Encolada</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Historial Solicitudes de Encoladas -->
+                <div class="clean-card">
+                    <div class="card-header space-between">
+                        <div>
+                            <h2>Mis PDVs Encolados</h2>
+                            <p>Seguimiento de número de ticket en tiempo real</p>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="renderFieldHistory()">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+
+                    <div id="list-encoladas-history" class="feed-container"></div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ===================================================================
+             SECCIÓN 2: APARTADO SOLICITUDES AL EQUIPO DE REPORTING (POWER BI)
+             =================================================================== -->
+        <section id="tab-reporting" class="tab-content">
+            <div class="grid-two-columns">
+                <!-- Formulario Solicitudes Reporting -->
+                <div class="clean-card form-card">
+                    <div class="card-header">
+                        <div class="icon-header purple">
+                            <i data-lucide="file-spreadsheet"></i>
+                        </div>
+                        <div>
+                            <h2>Solicitud al Equipo de Reporting</h2>
+                            <p>Gestión de desarrollo y ajustes en Power BI</p>
+                        </div>
+                    </div>
+
+                    <!-- Selector de Tipo de BI -->
+                    <div class="type-selector-box">
+                        <label class="type-option-label">Tipo de Requerimiento <span class="req">*</span></label>
+                        <div class="type-toggle-group three-cols">
+                            <label class="radio-card">
+                                <input type="radio" name="biType" value="EXISTING" checked onchange="toggleBiFields('EXISTING')">
+                                <div class="radio-content">
+                                    <i data-lucide="edit-3"></i>
+                                    <span>Modificación BI Existente</span>
+                                </div>
+                            </label>
+                            <label class="radio-card">
+                                <input type="radio" name="biType" value="NEW" onchange="toggleBiFields('NEW')">
+                                <div class="radio-content">
+                                    <i data-lucide="sparkles"></i>
+                                    <span>Power BI Nuevo</span>
+                                </div>
+                            </label>
+                            <label class="radio-card">
+                                <input type="radio" name="biType" value="SPORADIC" onchange="toggleBiFields('SPORADIC')">
+                                <div class="radio-content">
+                                    <i data-lucide="zap"></i>
+                                    <span>Solicitud Esporádica</span>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <form id="form-reporting" onsubmit="handleReportingSubmit(event)">
+                        <!-- CAMPO DE CORREO -->
+                        <div class="form-group">
+                            <label for="rep-email">Correo Electrónico (Notificaciones) <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="mail"></i>
+                                <input type="email" id="rep-email" placeholder="tu.nombre@dichter-neira.com" required>
+                            </div>
+                        </div>
+
+                        <!-- CAMPOS COMUNES -->
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="rep-estudio">Estudio <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="database"></i>
+                                    <select id="rep-estudio" required>
+                                        <option value="">-- Seleccionar --</option>
+                                        <option value="KO moderno">KO moderno</option>
+                                        <option value="KO tradicional">KO tradicional</option>
+                                        <option value="Lindley">Lindley</option>
+                                        <option value="Heineken">Heineken</option>
+                                        <option value="Storelive">Storelive</option>
+                                        <option value="P&G">P&G</option>
+                                        <option value="CBC">CBC</option>
+                                        <option value="ABI">ABI</option>
+                                        <option value="AJE">AJE</option>
+                                        <option value="Otros">Otros</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="rep-pais">País <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="globe"></i>
+                                    <select id="rep-pais" required>
+                                        <option value="">-- Seleccionar --</option>
+                                        <option value="Bolivia">Bolivia</option>
+                                        <option value="Chile">Chile</option>
+                                        <option value="Colombia">Colombia</option>
+                                        <option value="Costa Rica">Costa Rica</option>
+                                        <option value="Ecuador">Ecuador</option>
+                                        <option value="El Salvador">El Salvador</option>
+                                        <option value="Guatemala">Guatemala</option>
+                                        <option value="Honduras">Honduras</option>
+                                        <option value="Nicaragua">Nicaragua</option>
+                                        <option value="Panamá">Panamá</option>
+                                        <option value="Paraguay">Paraguay</option>
+                                        <option value="Perú">Perú</option>
+                                        <option value="República Dominicana">República Dominicana</option>
+                                        <option value="Uruguay">Uruguay</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CAMPOS EXCLUSIVOS PARA POWER BI EXISTENTE -->
+                        <div id="fields-existing-bi" class="conditional-block">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rep-usuario">Usuario Solicitante <span class="req">*</span></label>
+                                    <div class="input-with-icon">
+                                        <i data-lucide="user-check"></i>
+                                        <input type="text" id="rep-usuario" placeholder="Ej. j-perez@dichter-neira.com">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="rep-bi-name">Power BI a Editar <span class="req">*</span></label>
+                                    <div class="input-with-icon">
+                                        <i data-lucide="layout"></i>
+                                        <input type="text" id="rep-bi-name" placeholder="Ej. Dashboard KO Moderno LatAm">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- CAMPOS EXCLUSIVOS PARA POWER BI NUEVO -->
+                        <div id="fields-new-bi" class="conditional-block hidden">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="rep-frecuencia">Frecuencia de Actualización <span class="req">*</span></label>
+                                    <div class="input-with-icon">
+                                        <i data-lucide="clock"></i>
+                                        <select id="rep-frecuencia">
+                                            <option value="Diaria">Diaria</option>
+                                            <option value="Semanal">Semanal</option>
+                                            <option value="Quincenal">Quincenal</option>
+                                            <option value="Mensual">Mensual</option>
+                                            <option value="Por Ola">Por Ola / Cierre de Estudio</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="rep-area">Área que lo va a usar <span class="req">*</span></label>
+                                    <div class="input-with-icon">
+                                        <i data-lucide="briefcase"></i>
+                                        <input type="text" id="rep-area" placeholder="Escribe el nombre del área (ej. Trade Marketing...)">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- DETALLE DE LA SOLICITUD -->
+                        <div class="form-group">
+                            <label for="rep-solicitud-detalle">Detalle de la Solicitud <span class="req">*</span></label>
+                            <textarea id="rep-solicitud-detalle" rows="3" required placeholder="Describe los cambios a realizar en el filtro/medida o la estructura del nuevo BI..."></textarea>
+                        </div>
+
+                        <!-- CARGA DE ARCHIVOS (EXCEL O FOTO) EN REPORTING BI -->
+                        <div class="form-group">
+                            <label for="rep-file">Adjuntar Archivo de Soporte (Excel o Foto / Imagen)</label>
+                            <div class="input-with-icon">
+                                <i data-lucide="paperclip"></i>
+                                <input type="file" id="rep-file" accept=".xlsx, .xls, .csv, image/*" onchange="handleFileSelect(this, 'rep-file-info')">
+                            </div>
+                            <div id="rep-file-info" class="file-attached-info"></div>
+                        </div>
+
+                        <button type="submit" class="btn-dn-primary full-width">
+                            <i data-lucide="send"></i>
+                            <span>Enviar Solicitud a Reporting</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Historial Solicitudes Reporting -->
+                <div class="clean-card">
+                    <div class="card-header space-between">
+                        <div>
+                            <h2>Solicitudes de Reporting</h2>
+                            <p>Estado de requerimientos de Power BI</p>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="renderReportingHistory()">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+
+                    <div id="list-reporting-history" class="feed-container"></div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ===================================================================
+             SECCIÓN 3: APARTADO DE NOVEDADES & DÍAS FESTIVOS COLOMBIA
+             =================================================================== -->
+        <section id="tab-novedades" class="tab-content">
+            <!-- Banner Informativo Colombia -->
+            <div class="clean-card colombia-info-card">
+                <div class="colombia-info-header">
+                    <div class="colombia-badge">
+                        <span class="flag-icon">🇨🇴</span>
+                        <span>Sede de Reporting Colombia</span>
+                    </div>
+                    <h2><i data-lucide="clock"></i> Información sobre Atención de Solicitudes y Días Festivos</h2>
+                </div>
+                <p class="colombia-info-text">
+                    El equipo de <strong>Reporting de Dichter & Neira</strong> está ubicado centralmente en <strong>Colombia</strong>. 
+                    Por esta razón, si tu solicitud es registrada durante un <strong>día festivo en Colombia</strong> o durante el fin de semana, 
+                    esta será revisada y procesada a primera hora del <strong>siguiente día hábil disponible</strong>.
+                </p>
+            </div>
+
+            <div class="grid-two-columns" style="margin-top:20px;">
+                <!-- Estado Actual de Analistas -->
+                <div class="clean-card">
+                    <div class="card-header">
+                        <div class="icon-header purple">
+                            <i data-lucide="users"></i>
+                        </div>
+                        <div>
+                            <h2>Disponibilidad del Equipo de Analistas</h2>
+                            <p>Novedades sobre vacaciones o ausencias temporales</p>
+                        </div>
+                    </div>
+
+                    <div id="analyst-status-feed" class="analyst-status-list">
+                        <!-- Generado dinámicamente por JS -->
+                    </div>
+                </div>
+
+                <!-- Próximos Días Festivos en Colombia -->
+                <div class="clean-card">
+                    <div class="card-header space-between">
+                        <div>
+                            <h2>Próximos Festivos en Colombia</h2>
+                            <p>Días no laborables de hoy en adelante</p>
+                        </div>
+                        <span class="chip-status resolved" id="holidays-count-badge">0 festivos</span>
+                    </div>
+
+                    <div class="holidays-grid" id="holidays-container">
+                        <!-- Lista de festivos futuros por JS -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ===================================================================
+             SECCIÓN 4: MESA DE ADMINISTRACIÓN Y SOPORTE (SOLO TRAS AUTENTICAR)
+             =================================================================== -->
+        <section id="tab-admin" class="tab-content">
+            <!-- Métricas KPI -->
+            <div class="metrics-row">
+                <div class="metric-box amber">
+                    <div class="m-icon"><i data-lucide="clock"></i></div>
+                    <div>
+                        <span class="m-label">Pendientes por Atender</span>
+                        <h3 id="stat-pending">0</h3>
+                    </div>
+                </div>
+                <div class="metric-box blue">
+                    <div class="m-icon"><i data-lucide="radio"></i></div>
+                    <div>
+                        <span class="m-label">Encoladas PDV</span>
+                        <h3 id="stat-encoladas">0</h3>
+                    </div>
+                </div>
+                <div class="metric-box purple">
+                    <div class="m-icon"><i data-lucide="bar-chart"></i></div>
+                    <div>
+                        <span class="m-label">Solicitudes Power BI</span>
+                        <h3 id="stat-bi">0</h3>
+                    </div>
+                </div>
+                <div class="metric-box green">
+                    <div class="m-icon"><i data-lucide="check-circle-2"></i></div>
+                    <div>
+                        <span class="m-label">Total Atendidas</span>
+                        <h3 id="stat-resolved">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            </div>
+
+            <!-- Panel Consolidado -->
+            <div class="clean-card admin-card">
+                <div class="admin-top-bar">
+                    <div class="title-with-badge">
+                        <h2><i data-lucide="inbox"></i> Bandeja General de Solicitudes (Equipo Reporting)</h2>
+                        <span class="live-pulse"><span class="dot"></span> D&N Live</span>
+                    </div>
+
+                    <div class="admin-actions">
+                        <div class="search-input-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="admin-search" placeholder="Buscar PDV, Estudio, Analista..." oninput="renderAdminTable()">
+                        </div>
+
+                        <select id="admin-category-filter" onchange="renderAdminTable()" class="select-stylish">
+                            <option value="ALL">Todas las Categorías</option>
+                            <option value="ENCOLADA">Solo Encoladas PDV</option>
+                            <option value="BI_EXISTING">Power BI Existente</option>
+                            <option value="BI_NEW">Power BI Nuevo</option>
+                        </select>
+
+                        <select id="admin-analyst-filter" onchange="renderAdminTable()" class="select-stylish">
+                            <option value="ALL">Todos los Analistas</option>
+                            <option value="Mayumi Sanchez">Mayumi Sanchez</option>
+                            <option value="Juliana Chimbi">Juliana Chimbi</option>
+                            <option value="UNASSIGNED">Sin Asignar</option>
+                        </select>
+
+                        <button class="btn-secondary" onclick="fetchCloudData(true)" title="Forzar sincronización desde la nube">
+                            <i data-lucide="refresh-cw"></i> Sincronizar Nube
+                        </button>
+                        <button class="btn-secondary" onclick="exportToCSV()" title="Descargar reporte completo">
+                            <i data-lucide="download"></i> CSV
+                        </button>
+                        <button class="btn-dn-accent" onclick="addMockData()">
+                            <i data-lucide="sparkles"></i> + Demo
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabla Única de Administración -->
+                <div class="table-container">
+                    <table class="dn-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Categoría</th>
+                                <th>Detalle / Código</th>
+                                <th>Estudio</th>
+                                <th>País</th>
+                                <th>Solicitante / Correo</th>
+                                <th>Analista Asignado</th>
+                                <th>Estado</th>
+                                <th>Nº Ticket / Entrega</th>
+                                <th>Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody id="admin-table-body">
+                            <!-- Filas por JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ===================================================================
+             SECCIÓN NUEVA: GESTIÓN DE VACACIONES & NOVEDADES DE ANALISTAS
+             =================================================================== -->
+        <section id="tab-vacaciones" class="tab-content">
+            <div class="clean-card" style="margin-bottom:20px;">
+                <div class="card-header">
+                    <div class="icon-header purple">
+                        <i data-lucide="plane"></i>
+                    </div>
+                    <div>
+                        <h2>Gestión de Vacaciones y Novedades del Equipo</h2>
+                        <p>Página independiente para administrar ausencias, vacaciones y novedades públicas de Mayumi Sanchez y Juliana Chimbi</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid-two-columns">
+                <!-- Formulario Añadir Novedad / Vacaciones -->
+                <div class="clean-card form-card">
+                    <div class="card-header">
+                        <div class="icon-header blue">
+                            <i data-lucide="calendar-plus"></i>
+                        </div>
+                        <div>
+                            <h2>Registrar / Añadir Novedad</h2>
+                            <p>Ingresa las fechas y el estado para notificar al portal</p>
+                        </div>
+                    </div>
+
+                    <form id="form-analyst-novedad" onsubmit="handleNovedadSubmit(event)">
+                        <div class="form-group">
+                            <label for="nov-analyst">Analista <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="user"></i>
+                                <select id="nov-analyst" required>
+                                    <option value="Mayumi Sanchez">Mayumi Sanchez</option>
+                                    <option value="Juliana Chimbi">Juliana Chimbi</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="nov-status">Estado de Disponibilidad <span class="req">*</span></label>
+                            <div class="input-with-icon">
+                                <i data-lucide="tag"></i>
+                                <select id="nov-status" required>
+                                    <option value="VACACIONES">🏖️ En Periodo de Vacaciones</option>
+                                    <option value="DIA_LIBRE">🌴 Día Libre / Ausencia Programada</option>
+                                    <option value="CAPACITACION">📚 En Capacitación / Taller</option>
+                                    <option value="DISPONIBLE">🟢 Disponible (Laborando)</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="nov-date-start">Fecha de Inicio <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="calendar"></i>
+                                    <input type="date" id="nov-date-start" required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="nov-date-end">Fecha de Fin <span class="req">*</span></label>
+                                <div class="input-with-icon">
+                                    <i data-lucide="calendar"></i>
+                                    <input type="date" id="nov-date-end" required>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="nov-note">Novedad / Mensaje Público <span class="req">*</span></label>
+                            <textarea id="nov-note" rows="3" placeholder="Ej. Durante estos días Mayumi Sanchez estará atendiendo y respaldando sus tareas." required></textarea>
+                        </div>
+
+                        <button type="submit" class="btn-dn-primary full-width">
+                            <i data-lucide="plus-circle"></i>
+                            <span>Añadir / Guardar Novedad</span>
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Tabla de Novedades y Vacaciones Registradas -->
+                <div class="clean-card">
+                    <div class="card-header space-between">
+                        <div>
+                            <h2>Vacaciones Registradas</h2>
+                            <p>Listado para modificar o eliminar ausencias</p>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="renderVacacionesAdminTable()">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="dn-table">
+                            <thead>
+                                <tr>
+                                    <th>Analista</th>
+                                    <th>Estado</th>
+                                    <th>Periodo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vacaciones-admin-table-body">
+                                <!-- Generado por JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+
+        <!-- ===================================================================
+             SECCIÓN 5: DASHBOARD DE ANALYTICS & TIEMPO PROMEDIO POR ANALISTA
+             =================================================================== -->
+        <section id="tab-analytics" class="tab-content">
+            <div class="analytics-header clean-card">
+                <div>
+                    <h2><i data-lucide="bar-chart-2"></i> Dashboard de Analytics & Métricas por Analista</h2>
+                    <p>Visualización interactiva de solicitudes, rendimiento individual de Mayumi Sanchez y Juliana Chimbi y tiempos de respuesta.</p>
+                </div>
+                <button class="btn-secondary" onclick="renderAnalyticsCharts()">
+                    <i data-lucide="refresh-cw"></i> Actualizar Métricas
+                </button>
+            </div>
+
+            <!-- KPIs DE TIEMPO PROMEDIO POR ANALISTA -->
+            <div class="analytics-kpis-grid">
+                <div class="kpi-card blue">
+                    <span class="kpi-title">Tiempo Prom. Mayumi Sanchez</span>
+                    <h3 id="kpi-mayumi-time">~14.2 hrs</h3>
+                    <small id="kpi-mayumi-solved">0 solicitudes atendidas</small>
+                </div>
+                <div class="kpi-card purple">
+                    <span class="kpi-title">Tiempo Prom. Juliana Chimbi</span>
+                    <h3 id="kpi-juliana-time">~16.8 hrs</h3>
+                    <small id="kpi-juliana-solved">0 solicitudes atendidas</small>
+                </div>
+                <div class="kpi-card cyan">
+                    <span class="kpi-title">Tiempo Prom. General Equipo</span>
+                    <h3 id="kpi-avg-time">~15.5 hrs</h3>
+                    <small>Promedio total de respuesta</small>
+                </div>
+                <div class="kpi-card green">
+                    <span class="kpi-title">Tasa de Resolución Total</span>
+                    <h3 id="kpi-resolution-rate">0%</h3>
+                    <small id="kpi-resolved-ratio">0 resueltas de 0</small>
+                </div>
+            </div>
+
+            <!-- Cuadrícula de Gráficas Chart.js -->
+            <div class="charts-grid">
+                <div class="clean-card chart-card">
+                    <div class="chart-card-header">
+                        <h4><i data-lucide="users"></i> Solicitudes Asignadas por Analista</h4>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="chart-analyst"></canvas>
+                    </div>
+                </div>
+
+                <div class="clean-card chart-card">
+                    <div class="chart-card-header">
+                        <h4><i data-lucide="database"></i> Solicitudes por Estudio</h4>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="chart-estudio"></canvas>
+                    </div>
+                </div>
+
+                <div class="clean-card chart-card">
+                    <div class="chart-card-header">
+                        <h4><i data-lucide="globe"></i> Distribución Geográfica por País</h4>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="chart-pais"></canvas>
+                    </div>
+                </div>
+
+                <div class="clean-card chart-card">
+                    <div class="chart-card-header">
+                        <h4><i data-lucide="pie-chart"></i> Tipo de Requerimiento (BI vs Encolada)</h4>
+                    </div>
+                    <div class="canvas-wrapper">
+                        <canvas id="chart-category"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL VISTA PREVIA DEL CORREO DE NOTIFICACIÓN -->
+    <div id="email-preview-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3><i data-lucide="mail"></i> Notificación Enviada por Correo</h3>
+                <button class="close-btn" onclick="closeEmailPreviewModal()">&times;</button>
+            </div>
+
+            <div class="email-mock-container">
+                <div class="email-mock-header">
+                    <div><strong>De:</strong> Soporte & Reporting Dichter & Neira &lt;soporte-reporting@dichter-neira.com&gt;</div>
+                    <div><strong>Para:</strong> <span id="email-preview-to" class="highlight-email">--</span></div>
+                    <div><strong>Asunto:</strong> <span id="email-preview-subject">--</span></div>
+                </div>
+
+                <div id="email-preview-body" class="email-mock-body"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeEmailPreviewModal()">Cerrar Vista Previa</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE AUTENTICACIÓN EXCLUSIVO PARA REPORTING -->
+    <div id="reporting-auth-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 400px;">
+            <div class="modal-header">
+                <h3><i data-lucide="lock"></i> Acceso Equipo de Reporting</h3>
+                <button class="close-btn" onclick="closeReportingAuthModal()">&times;</button>
+            </div>
+
+            <form onsubmit="handleReportingAuth(event)">
+                <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:16px;">
+                    Ingresa las credenciales de Reporting para desbloquear la <strong>Mesa de Reporting</strong> y el <strong>Dashboard de Analytics</strong>.
+                </p>
+
+                <div class="form-group">
+                    <label for="auth-username">Usuario</label>
+                    <div class="input-with-icon">
+                        <i data-lucide="user"></i>
+                        <input type="text" id="auth-username" placeholder="reporting" required autocomplete="off">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="auth-password">Contraseña</label>
+                    <div class="input-with-icon">
+                        <i data-lucide="key"></i>
+                        <input type="password" id="auth-password" placeholder="••••••••" required>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeReportingAuthModal()">Cancelar</button>
+                    <button type="submit" class="btn-dn-primary">
+                        <i data-lucide="unlock"></i> Entrar a Reporting
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE GESTIÓN, ESTADO 'EN PROCESO' CON FECHA DE ENTREGA Y TICKET -->
+    <div id="response-modal" class="modal-backdrop">
+        <div class="modal-box">
+            <div class="modal-header">
+                <h3><i data-lucide="check-square"></i> Gestión y Actualización de Solicitud</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+
+            <div class="modal-body">
+                <div id="modal-summary" class="summary-card"></div>
+
+                <div class="form-group" style="margin-top:16px;">
+                    <label for="modalAnalyst">Analista de Reporting Asignada <span class="req">*</span></label>
+                    <div class="input-with-icon">
+                        <i data-lucide="user-check"></i>
+                        <select id="modalAnalyst" required>
+                            <option value="">-- Seleccionar Analista --</option>
+                            <option value="Mayumi Sanchez">Mayumi Sanchez</option>
+                            <option value="Juliana Chimbi">Juliana Chimbi</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- SELECTOR DE ESTADO: PENDIENTE, EN PROCESO, RESUELTO -->
+                <div class="form-group">
+                    <label for="modalStatus">Estado de la Solicitud <span class="req">*</span></label>
+                    <div class="input-with-icon">
+                        <i data-lucide="tag"></i>
+                        <select id="modalStatus" onchange="toggleModalStatusFields(this.value)" required>
+                            <option value="IN_PROGRESS">🔵 En Proceso (Establecer Fecha Acordada de Entrega)</option>
+                            <option value="RESOLVED">🟢 Resuelto (Asignar Ticket de Solución)</option>
+                            <option value="PENDING">🟡 Pendiente / En Evaluación</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- BLOQUE CONDICIONAL PARA ESTADO 'EN PROCESO' -->
+                <div id="modal-in-progress-fields" class="conditional-block">
+                    <div class="form-group">
+                        <label for="modalDeliveryDate">Fecha Acordada de Entrega <span class="req">*</span></label>
+                        <div class="input-with-icon">
+                            <i data-lucide="calendar"></i>
+                            <input type="date" id="modalDeliveryDate">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="modalInProgressNote">Detalle / Comentarios del Acuerdo <span class="req">*</span></label>
+                        <textarea id="modalInProgressNote" rows="2" placeholder="Ej. Según la conversación sostenida, se entregarán los avances en la fecha acordada..."></textarea>
+                    </div>
+                </div>
+
+                <!-- BLOQUE CONDICIONAL PARA ESTADO 'RESUELTO' -->
+                <div id="modal-resolved-fields" class="conditional-block hidden">
+                    <div class="form-group">
+                        <label for="modalTicket">Número de Ticket Asignado / Folio <span class="req">*</span></label>
+                        <div class="ticket-input-group">
+                            <input type="text" id="modalTicket" placeholder="Ej. TCK-DN-2026-9042">
+                            <button type="button" class="btn-secondary" onclick="autoGenerateTicket()">
+                                <i data-lucide="wand-2"></i> Auto
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="modalNote">Respuesta / Nota Final para el Solicitante</label>
+                        <textarea id="modalNote" rows="2" placeholder="Ej. Solicitud procesada exitosamente en servidor D&N por la analista..."></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeModal()">Cancelar</button>
+                <button type="submit" class="btn-dn-primary" onclick="saveModalResponse()">
+                    <i data-lucide="send"></i> Guardar y Enviar Notificación
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-wrapper"></div>
+
+    <script src="app.js?v=11.0"></script>
+</body>
+</html>
