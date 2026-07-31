@@ -151,9 +151,14 @@ async function fetchCloudData(userTriggered = false) {
             let updated = false;
 
             if (data && Array.isArray(data.requests)) {
+                const prevCount = state.requests.length;
                 state.requests = mergeRequests(state.requests, data.requests);
                 saveToStorage();
                 updated = true;
+
+                if (state.requests.length > prevCount && !userTriggered && prevCount > 0) {
+                    showToast(`🔔 ¡Nueva solicitud recibida! (Total: ${state.requests.length} globales)`, 'info');
+                }
             }
 
             if (data && Array.isArray(data.analystStatus)) {
@@ -265,7 +270,7 @@ function compressImageFile(file, callback) {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 1200;
+            const maxDim = 800;
 
             if (width > maxDim || height > maxDim) {
                 if (width > height) {
@@ -282,7 +287,7 @@ function compressImageFile(file, callback) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
             callback(compressedDataUrl);
         };
         img.onerror = function() {
@@ -1305,25 +1310,22 @@ function renderFieldHistory() {
     if (!container) return;
 
     const myIds = getMySubmittedIds();
+    const encoladas = state.requests.filter(r => r.category === 'ENCOLADA');
 
-    // Solo se muestran las solicitudes que se hayan creado desde este computador (o todas si es admin autenticado)
-    const myEncoladas = state.requests.filter(r => 
-        r.category === 'ENCOLADA' && (myIds.includes(r.id) || state.isReportingAuthenticated)
-    );
-
-    if (myEncoladas.length === 0) {
+    if (encoladas.length === 0) {
         container.innerHTML = `
             <div style="color:var(--text-muted); text-align:center; padding:30px 15px;">
                 <i data-lucide="inbox" style="width:32px; height:32px; stroke-width:1.5; margin-bottom:8px; opacity:0.5; color:var(--dn-blue-primary);"></i>
-                <p style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-bottom:4px;">Sin encoladas en este equipo</p>
-                <small style="font-size:0.78rem; display:block; line-height:1.3; color:var(--text-muted);">Las solicitudes de encoladas que envíes desde tu computador aparecerán aquí para que consultes su estado en tiempo real.</small>
+                <p style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-bottom:4px;">Sin encoladas registradas</p>
+                <small style="font-size:0.78rem; display:block; line-height:1.3; color:var(--text-muted);">Las solicitudes de encoladas enviadas desde cualquier equipo aparecerán aquí en tiempo real.</small>
             </div>
         `;
         lucide.createIcons();
         return;
     }
 
-    container.innerHTML = myEncoladas.map(req => {
+    container.innerHTML = encoladas.map(req => {
+        const isMine = myIds.includes(req.id);
         const isResolved = req.status === 'RESOLVED';
         const isInProgress = req.status === 'IN_PROGRESS';
 
@@ -1349,16 +1351,22 @@ function renderFieldHistory() {
         return `
             <div class="item-card">
                 <div class="item-top">
-                    <div>${pdvsRender}</div>
+                    <div>
+                        ${pdvsRender}
+                        ${isMine ? `<span style="font-size:0.7rem; background:rgba(13,92,171,0.12); color:var(--dn-blue-primary); padding:1px 6px; border-radius:10px; margin-left:4px; font-weight:700;">📌 Mi Equipo</span>` : ''}
+                    </div>
                     <span class="chip-status ${statusClass}">${statusText}</span>
                 </div>
                 <div style="font-size:0.83rem; color:var(--text-muted); margin-bottom:4px;">
-                    Estudio: <strong>${escapeHtml(req.estudio)}</strong> | País: <strong>${escapeHtml(req.pais)}</strong> | Ola: <strong>${escapeHtml(req.ola)}</strong>
+                    Estudio: <strong>${escapeHtml(req.estudio)}</strong> | País: <strong>${escapeHtml(req.pais)}</strong> | Ola: <strong>${escapeHtml(req.ola || 'N/A')}</strong>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-dark); margin-bottom:4px;">
+                    Solicitante: <strong>${escapeHtml(req.solicitante || req.email || 'N/A')}</strong>
                 </div>
                 ${req.fileName ? `<div style="margin-bottom:4px;">${renderFileChip(req)}</div>` : ''}
                 ${req.analyst ? `<div style="margin-bottom:4px;"><span class="analyst-chip"><i data-lucide="user-check" style="width:11px"></i> Analista: ${escapeHtml(req.analyst)}</span></div>` : ''}
                 ${isResolved ? `
-                    <div style="margin-top:8px; padding:8px; background:rgba(20,168,59,0.1); border-radius:6px; display:flex; justify-between; align-items:center;">
+                    <div style="margin-top:8px; padding:8px; background:rgba(20,168,59,0.1); border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-family:var(--font-mono); color:var(--dn-green); font-weight:800;">Ticket: ${escapeHtml(req.ticketNumber)}</span>
                         <button class="btn-secondary btn-sm" onclick="copyText('${escapeHtml(req.ticketNumber)}')">Copiar</button>
                     </div>
@@ -1375,26 +1383,24 @@ function renderReportingHistory() {
     if (!container) return;
 
     const myIds = getMySubmittedIds();
-
-    // Solo se muestran las solicitudes de Reporting enviadas desde ESTE computador (o todas si es admin autenticado)
-    const myReportingReqs = state.requests.filter(r => 
-        (r.category === 'BI_EXISTING' || r.category === 'BI_NEW' || r.category === 'BI_SPORADIC') &&
-        (myIds.includes(r.id) || state.isReportingAuthenticated)
+    const reportingReqs = state.requests.filter(r => 
+        r.category === 'BI_EXISTING' || r.category === 'BI_NEW' || r.category === 'BI_SPORADIC'
     );
 
-    if (myReportingReqs.length === 0) {
+    if (reportingReqs.length === 0) {
         container.innerHTML = `
             <div style="color:var(--text-muted); text-align:center; padding:30px 15px;">
                 <i data-lucide="inbox" style="width:32px; height:32px; stroke-width:1.5; margin-bottom:8px; opacity:0.5; color:var(--dn-blue-primary);"></i>
-                <p style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-bottom:4px;">Sin solicitudes en este equipo</p>
-                <small style="font-size:0.78rem; display:block; line-height:1.3; color:var(--text-muted);">Las solicitudes a Reporting que envíes desde tu computador aparecerán aquí para consultar su avance.</small>
+                <p style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-bottom:4px;">Sin solicitudes de Reporting</p>
+                <small style="font-size:0.78rem; display:block; line-height:1.3; color:var(--text-muted);">Las solicitudes enviadas a Reporting aparecerán aquí en tiempo real.</small>
             </div>
         `;
         lucide.createIcons();
         return;
     }
 
-    container.innerHTML = myReportingReqs.map(req => {
+    container.innerHTML = reportingReqs.map(req => {
+        const isMine = myIds.includes(req.id);
         const isResolved = req.status === 'RESOLVED';
         const isInProgress = req.status === 'IN_PROGRESS';
         const isNew = req.category === 'BI_NEW';
@@ -1421,14 +1427,17 @@ function renderReportingHistory() {
         return `
             <div class="item-card">
                 <div class="item-top">
-                    <span class="tag-category ${isSporadic ? 'sporadic' : ''}">${catLabel}</span>
+                    <div>
+                        <span class="tag-category ${isSporadic ? 'sporadic' : ''}">${catLabel}</span>
+                        ${isMine ? `<span style="font-size:0.7rem; background:rgba(13,92,171,0.12); color:var(--dn-blue-primary); padding:1px 6px; border-radius:10px; margin-left:4px; font-weight:700;">📌 Mi Equipo</span>` : ''}
+                    </div>
                     <span class="chip-status ${statusClass}">${statusText}</span>
                 </div>
                 <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">
                     ${detailHeader}
                 </div>
-                <div style="font-size:0.8rem; color:var(--text-muted);">
-                    Estudio: ${escapeHtml(req.estudio)} | País: ${escapeHtml(req.pais)}
+                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">
+                    Estudio: ${escapeHtml(req.estudio)} | País: ${escapeHtml(req.pais)} | Solicitante: ${escapeHtml(req.solicitante || req.email || 'N/A')}
                 </div>
                 ${req.fileName ? `<div style="margin-top:4px;">${renderFileChip(req)}</div>` : ''}
                 ${req.analyst ? `<div style="margin-top:4px;"><span class="analyst-chip">Analista: ${escapeHtml(req.analyst)}</span></div>` : ''}
