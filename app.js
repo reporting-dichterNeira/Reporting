@@ -193,22 +193,45 @@ async function fetchCloudData(userTriggered = false) {
 }
 
 function mergeRequests(localArr, cloudArr) {
-    if (!Array.isArray(cloudArr)) return localArr;
+    if (!Array.isArray(cloudArr)) return localArr || [];
+    if (!Array.isArray(localArr)) return cloudArr || [];
+
     const map = new Map();
 
-    localArr.forEach(r => map.set(r.id, r));
-
+    // 1. Insertar primero las solicitudes de la nube (fuente de verdad del servidor)
     cloudArr.forEach(cloudReq => {
-        if (!map.has(cloudReq.id)) {
+        if (cloudReq && cloudReq.id) {
             map.set(cloudReq.id, cloudReq);
+        }
+    });
+
+    // 2. Fusionar solicitudes locales sin borrar información de la nube
+    localArr.forEach(localReq => {
+        if (!localReq || !localReq.id) return;
+
+        if (!map.has(localReq.id)) {
+            map.set(localReq.id, localReq);
         } else {
-            const localReq = map.get(cloudReq.id);
-            // Preservar siempre la versión más completa y larga del archivo binario
-            let bestFileUrl = cloudReq.fileDataUrl;
-            if (localReq.fileDataUrl && (!cloudReq.fileDataUrl || localReq.fileDataUrl.length > cloudReq.fileDataUrl.length)) {
-                bestFileUrl = localReq.fileDataUrl;
-            }
-            map.set(cloudReq.id, { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl });
+            const cloudReq = map.get(localReq.id);
+            const resolvedStatus = (cloudReq.status && cloudReq.status !== 'PENDING') ? cloudReq.status : localReq.status;
+            const analyst = cloudReq.analyst || localReq.analyst;
+            const ticketNumber = cloudReq.ticketNumber || localReq.ticketNumber;
+            const deliveryDate = cloudReq.deliveryDate || localReq.deliveryDate;
+            const inProgressNote = cloudReq.inProgressNote || localReq.inProgressNote;
+            const resolutionNote = cloudReq.resolutionNote || localReq.resolutionNote;
+            const bestFileUrl = (localReq.fileDataUrl && localReq.fileDataUrl.length > (cloudReq.fileDataUrl || '').length) ? localReq.fileDataUrl : cloudReq.fileDataUrl;
+
+            map.set(cloudReq.id, {
+                ...cloudReq,
+                ...localReq,
+                status: resolvedStatus,
+                analyst: analyst,
+                ticketNumber: ticketNumber,
+                deliveryDate: deliveryDate,
+                inProgressNote: inProgressNote,
+                resolutionNote: resolutionNote,
+                fileDataUrl: bestFileUrl
+            });
         }
     });
 
@@ -221,11 +244,23 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
-    // Conservar archivos Excel e imágenes completos (hasta 3.5 MB de caracteres Base64)
-    // para garantizar que nunca se recorten las filas de los libros de Excel
+    // Obtenemos la última versión de la nube primero para FUSIONAR antes de guardar
+    try {
+        const getResp = await fetch(SYNC_API_URL, { cache: 'no-store' });
+        if (getResp.ok) {
+            const cloudData = await getResp.json();
+            if (cloudData && Array.isArray(cloudData.requests)) {
+                state.requests = mergeRequests(state.requests, cloudData.requests);
+                saveToStorage();
+            }
+        }
+    } catch (e) {
+        console.warn("No se pudo obtener el estado previo de la nube:", e);
+    }
+
     const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 3500000) {
+        if (copy.fileDataUrl && copy.fileDataUrl.length > 2000000) {
             copy.fileDataUrl = null;
         }
         return copy;
