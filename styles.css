@@ -230,6 +230,17 @@ body.dn-light-theme {
     color: #ffffff;
 }
 
+.file-attached-chip.email-badge {
+    background: rgba(13, 92, 171, 0.08);
+    border: 1px solid rgba(13, 92, 171, 0.25);
+    color: var(--dn-blue-primary);
+    cursor: default;
+}
+
+.file-attached-chip.email-badge:hover {
+    background: rgba(13, 92, 171, 0.14);
+}
+
 /* BANNER DE NOVEDAD DE HOY */
 .today-alert-banner {
     background: linear-gradient(135deg, var(--dn-navy-secondary), var(--dn-blue-primary));
