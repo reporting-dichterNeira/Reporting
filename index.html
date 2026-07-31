@@ -275,13 +275,16 @@
                             <textarea id="enc-observaciones" rows="2" placeholder="Ej. Favor revisar si hay transacciones encoladas pendientes de conciliar..."></textarea>
                         </div>
 
-                        <!-- CARGA DE ARCHIVOS (EXCEL O FOTO) EN ENCOLADAS -->
+                        <!-- CARGA DE FOTOS E IMÁGENES EN ENCOLADAS -->
                         <div class="form-group">
-                            <label for="enc-file">Adjuntar Archivo de Soporte (Excel o Foto / Imagen)</label>
+                            <label for="enc-file">Adjuntar Foto / Imagen Soporte (Opcional)</label>
                             <div class="input-with-icon">
-                                <i data-lucide="paperclip"></i>
-                                <input type="file" id="enc-file" accept=".xlsx, .xls, .csv, image/*" onchange="handleFileSelect(this, 'enc-file-info')">
+                                <i data-lucide="camera"></i>
+                                <input type="file" id="enc-file" accept="image/*" onchange="handleFileSelect(this, 'enc-file-info')">
                             </div>
+                            <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">
+                                💡 Si requiere enviar un archivo Excel o documento, por favor enviarlo por Teams al equipo de Reporting.
+                            </small>
                             <div id="enc-file-info" class="file-attached-info"></div>
                         </div>
 
@@ -466,13 +469,16 @@
                             <textarea id="rep-solicitud-detalle" rows="3" required placeholder="Describe los cambios a realizar en el filtro/medida o la estructura del nuevo BI..."></textarea>
                         </div>
 
-                        <!-- CARGA DE ARCHIVOS (EXCEL O FOTO) EN REPORTING BI -->
+                        <!-- CARGA DE FOTOS E IMÁGENES EN REPORTING BI -->
                         <div class="form-group">
-                            <label for="rep-file">Adjuntar Archivo de Soporte (Excel o Foto / Imagen)</label>
+                            <label for="rep-file">Adjuntar Foto / Imagen Soporte (Opcional)</label>
                             <div class="input-with-icon">
-                                <i data-lucide="paperclip"></i>
-                                <input type="file" id="rep-file" accept=".xlsx, .xls, .csv, image/*" onchange="handleFileSelect(this, 'rep-file-info')">
+                                <i data-lucide="camera"></i>
+                                <input type="file" id="rep-file" accept="image/*" onchange="handleFileSelect(this, 'rep-file-info')">
                             </div>
+                            <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">
+                                💡 Si requiere enviar un archivo Excel o documento, por favor enviarlo por Teams al equipo de Reporting.
+                            </small>
                             <div id="rep-file-info" class="file-attached-info"></div>
                         </div>
 
@@ -999,6 +1005,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=13.0"></script>
+    <script src="app.js?v=11.0"></script>
 </body>
 </html>
