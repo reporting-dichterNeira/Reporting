@@ -6,6 +6,7 @@ const STORAGE_KEY = 'dn_portal_requests_v28';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
+const ATTACHMENT_API_URL = 'https://jsonblob.com/api/jsonBlob';
 
 // BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
 const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fb398-a51c-79af-a1fd-c0095e6459fe';
@@ -203,7 +204,10 @@ function mergeRequests(localArr, cloudArr) {
             if (localReq.fileDataUrl && (!cloudReq.fileDataUrl || localReq.fileDataUrl.length > cloudReq.fileDataUrl.length)) {
                 bestFileUrl = localReq.fileDataUrl;
             }
-            map.set(cloudReq.id, { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl });
+            const mergedReq = { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl };
+            // A stale local copy must not erase the independently stored attachment URL.
+            if (!mergedReq.fileUrl && cloudReq.fileUrl) mergedReq.fileUrl = cloudReq.fileUrl;
+            map.set(cloudReq.id, mergedReq);
         }
     });
 
@@ -213,16 +217,26 @@ function mergeRequests(localArr, cloudArr) {
 }
 
 async function syncCloudData() {
+    // Store each attachment separately so the ticket database never drops it when
+    // its payload grows beyond the service limit.
+    try {
+        await Promise.all(state.requests
+            .filter(req => req.fileDataUrl && !req.fileUrl)
+            .map(req => uploadRequestAttachment(req)));
+    } catch (e) {
+        console.error('Unable to store attachment before sync:', e);
+        showToast('No se pudo guardar el archivo original. El ticket no se sincronizo.', 'error');
+        return false;
+    }
+
     saveToStorage();
     saveNovedadesToStorage();
 
-    // Conservar archivos Excel e imágenes completos (hasta 3.5 MB de caracteres Base64)
-    // para garantizar que nunca se recorten las filas de los libros de Excel
+    // The ticket stores only the attachment URL; its original binary is in the
+    // independent attachment resource.
     const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 3500000) {
-            copy.fileDataUrl = null;
-        }
+        copy.fileDataUrl = null;
         return copy;
     });
 
@@ -249,8 +263,10 @@ async function syncCloudData() {
             });
         }
         console.log("✅ Datos sincronizados correctamente en la nube.");
+        return true;
     } catch (e) {
         console.error("Error al publicar en la nube:", e);
+        return false;
     }
 }
 
@@ -358,6 +374,34 @@ function dataURLtoBlob(dataurl) {
     }
 }
 
+async function uploadRequestAttachment(req) {
+    if (!req?.fileDataUrl || req.fileUrl) return req?.fileUrl || null;
+
+    const response = await fetch(ATTACHMENT_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+            fileName: req.fileName,
+            fileDataUrl: req.fileDataUrl,
+            uploadedAt: new Date().toISOString()
+        })
+    });
+
+    const fileUrl = response.headers.get('Location');
+    if (!response.ok || !fileUrl) {
+        throw new Error(`Attachment server returned ${response.status}`);
+    }
+
+    req.fileUrl = fileUrl;
+    // A remote, byte-for-byte copy exists now. Keeping Base64 in localStorage
+    // risks exceeding its quota and corrupting future ticket synchronization.
+    req.fileDataUrl = null;
+    return fileUrl;
+}
+
 function triggerBlobDownload(blob, filename) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -404,7 +448,7 @@ function generateFallbackImageBlob(req, callback) {
     canvas.toBlob(blob => callback(blob), 'image/png');
 }
 
-function downloadRequestFile(reqId) {
+async function downloadRequestFile(reqId) {
     const req = state.requests.find(r => r.id === reqId);
     if (!req || !req.fileName) {
         showToast('No se encontró información del archivo adjunto', 'warning');
@@ -420,6 +464,29 @@ function downloadRequestFile(reqId) {
             return;
         }
     }
+
+    // Load the exact original binary from its independent attachment record.
+    if (req.fileUrl) {
+        try {
+            const response = await fetch(req.fileUrl, { cache: 'no-store' });
+            if (!response.ok) throw new Error(`Response ${response.status}`);
+
+            const storedFile = await response.json();
+            const blob = dataURLtoBlob(storedFile.fileDataUrl);
+            if (!blob) throw new Error('Invalid stored file');
+
+            triggerBlobDownload(blob, req.fileName);
+            showToast(`Descargando archivo completo original: ${req.fileName}`, 'success');
+            return;
+        } catch (e) {
+            console.error('Error downloading original attachment:', e);
+        }
+    }
+
+    // Never generate a CSV or an image from ticket fields as a replacement for
+    // an attachment: that is not the file the requester uploaded.
+    showToast('El archivo original no esta disponible para este ticket antiguo.', 'warning');
+    return;
 
     // 2. Respaldo para solicitudes demo antiguas de prueba
     const ext = req.fileName.split('.').pop().toLowerCase();
@@ -1051,6 +1118,14 @@ async function handleEncoladaSubmit(e) {
         resolvedAt: null
     };
 
+    try {
+        await uploadRequestAttachment(newReq);
+    } catch (error) {
+        console.error('Unable to upload original attachment:', error);
+        showToast('No se pudo guardar el archivo original. Intenta enviar nuevamente.', 'error');
+        return;
+    }
+
     await fetchCloudData();
     state.requests.unshift(newReq);
     recordMySubmittedId(newReq.id);
@@ -1107,6 +1182,14 @@ async function handleReportingSubmit(e) {
         newReq.solicitante = `Área: ${newReq.area}`;
     } else {
         newReq.solicitante = email;
+    }
+
+    try {
+        await uploadRequestAttachment(newReq);
+    } catch (error) {
+        console.error('Unable to upload original attachment:', error);
+        showToast('No se pudo guardar el archivo original. Intenta enviar nuevamente.', 'error');
+        return;
     }
 
     await fetchCloudData();
