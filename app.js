@@ -2,13 +2,13 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v100';
+const STORAGE_KEY = 'dn_portal_requests_v200';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
 // BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
-const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fb398-a51c-79af-a1fd-c0095e6459fe';
+const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fb8d6-579d-7824-8255-1eedae288df9';
 
 // CREDENCIALES EMAILJS
 const EMAILJS_SERVICE_ID = 'service_b1jhrai';
