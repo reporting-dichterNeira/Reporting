@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v37';
+const STORAGE_KEY = 'dn_portal_requests_v28';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -116,7 +116,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadFromStorage();
     loadNovedadesFromStorage();
-    checkUrlTicketImport();
 
     if (state.requests.length === 0) {
         seedInitialMockData();
@@ -145,21 +144,16 @@ document.addEventListener('DOMContentLoaded', () => {
 async function fetchCloudData(userTriggered = false) {
     const syncBadge = document.getElementById('cloud-sync-status');
     try {
-        const resp = await fetch(SYNC_API_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        const resp = await fetch(SYNC_API_URL, { cache: 'no-store' });
         if (resp.ok) {
             const data = await resp.json();
             
             let updated = false;
 
             if (data && Array.isArray(data.requests)) {
-                const prevCount = state.requests.length;
                 state.requests = mergeRequests(state.requests, data.requests);
                 saveToStorage();
                 updated = true;
-
-                if (state.requests.length > prevCount && !userTriggered && prevCount > 0) {
-                    showToast(`🔔 ¡Nueva solicitud recibida! (Total: ${state.requests.length} globales)`, 'info');
-                }
             }
 
             if (data && Array.isArray(data.analystStatus)) {
@@ -194,45 +188,22 @@ async function fetchCloudData(userTriggered = false) {
 }
 
 function mergeRequests(localArr, cloudArr) {
-    if (!Array.isArray(cloudArr)) return localArr || [];
-    if (!Array.isArray(localArr)) return cloudArr || [];
-
+    if (!Array.isArray(cloudArr)) return localArr;
     const map = new Map();
 
-    // 1. Insertar primero las solicitudes de la nube (fuente de verdad del servidor)
+    localArr.forEach(r => map.set(r.id, r));
+
     cloudArr.forEach(cloudReq => {
-        if (cloudReq && cloudReq.id) {
+        if (!map.has(cloudReq.id)) {
             map.set(cloudReq.id, cloudReq);
-        }
-    });
-
-    // 2. Fusionar solicitudes locales sin borrar información de la nube
-    localArr.forEach(localReq => {
-        if (!localReq || !localReq.id) return;
-
-        if (!map.has(localReq.id)) {
-            map.set(localReq.id, localReq);
         } else {
-            const cloudReq = map.get(localReq.id);
-            const resolvedStatus = (cloudReq.status && cloudReq.status !== 'PENDING') ? cloudReq.status : localReq.status;
-            const analyst = cloudReq.analyst || localReq.analyst;
-            const ticketNumber = cloudReq.ticketNumber || localReq.ticketNumber;
-            const deliveryDate = cloudReq.deliveryDate || localReq.deliveryDate;
-            const inProgressNote = cloudReq.inProgressNote || localReq.inProgressNote;
-            const resolutionNote = cloudReq.resolutionNote || localReq.resolutionNote;
-            const bestFileUrl = (localReq.fileDataUrl && localReq.fileDataUrl.length > (cloudReq.fileDataUrl || '').length) ? localReq.fileDataUrl : cloudReq.fileDataUrl;
-
-            map.set(cloudReq.id, {
-                ...cloudReq,
-                ...localReq,
-                status: resolvedStatus,
-                analyst: analyst,
-                ticketNumber: ticketNumber,
-                deliveryDate: deliveryDate,
-                inProgressNote: inProgressNote,
-                resolutionNote: resolutionNote,
-                fileDataUrl: bestFileUrl
-            });
+            const localReq = map.get(cloudReq.id);
+            // Preservar siempre la versión más completa y larga del archivo binario
+            let bestFileUrl = cloudReq.fileDataUrl;
+            if (localReq.fileDataUrl && (!cloudReq.fileDataUrl || localReq.fileDataUrl.length > cloudReq.fileDataUrl.length)) {
+                bestFileUrl = localReq.fileDataUrl;
+            }
+            map.set(cloudReq.id, { ...cloudReq, ...localReq, fileDataUrl: bestFileUrl });
         }
     });
 
@@ -245,23 +216,11 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
-    // Obtenemos la última versión de la nube primero para FUSIONAR antes de guardar
-    try {
-        const getResp = await fetch(SYNC_API_URL, { cache: 'no-store' });
-        if (getResp.ok) {
-            const cloudData = await getResp.json();
-            if (cloudData && Array.isArray(cloudData.requests)) {
-                state.requests = mergeRequests(state.requests, cloudData.requests);
-                saveToStorage();
-            }
-        }
-    } catch (e) {
-        console.warn("No se pudo obtener el estado previo de la nube:", e);
-    }
-
+    // Conservar archivos Excel e imágenes completos (hasta 3.5 MB de caracteres Base64)
+    // para garantizar que nunca se recorten las filas de los libros de Excel
     const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 2000000) {
+        if (copy.fileDataUrl && copy.fileDataUrl.length > 3500000) {
             copy.fileDataUrl = null;
         }
         return copy;
@@ -306,7 +265,7 @@ function compressImageFile(file, callback) {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 800;
+            const maxDim = 1200;
 
             if (width > maxDim || height > maxDim) {
                 if (width > height) {
@@ -323,7 +282,7 @@ function compressImageFile(file, callback) {
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
 
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.6);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
             callback(compressedDataUrl);
         };
         img.onerror = function() {
@@ -340,29 +299,39 @@ function handleFileSelect(inputElem, targetInfoId) {
 
     if (inputElem.files && inputElem.files[0]) {
         const file = inputElem.files[0];
-        const isImage = file.type.startsWith('image/') || !!file.name.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
+        const isImage = file.type.startsWith('image/');
+        const iconName = isImage ? 'image' : 'file-spreadsheet';
 
-        if (!isImage) {
-            showToast('⚠️ Solo se permite adjuntar imágenes. Para archivos Excel o documentos, por favor enviarlos por Teams al equipo de Reporting.', 'warning');
-            inputElem.value = '';
-            inputElem.dataset.fileDataUrl = '';
-            inputElem.dataset.fileName = '';
-            target.innerHTML = '';
-            return;
+        if (isImage) {
+            compressImageFile(file, function(compressedDataUrl) {
+                inputElem.dataset.fileDataUrl = compressedDataUrl;
+                inputElem.dataset.fileName = file.name;
+
+                target.innerHTML = `
+                    <span class="file-attached-chip clickable">
+                        <i data-lucide="${iconName}"></i>
+                        <span>Adjunto listo: <strong>${escapeHtml(file.name)}</strong> (Descarga habilitada)</span>
+                    </span>
+                `;
+                lucide.createIcons();
+            });
+        } else {
+            // Para archivos Excel (.xlsx, .xls, .csv), guardamos el binario 100% completo e intacto
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                inputElem.dataset.fileDataUrl = e.target.result;
+                inputElem.dataset.fileName = file.name;
+
+                target.innerHTML = `
+                    <span class="file-attached-chip clickable">
+                        <i data-lucide="${iconName}"></i>
+                        <span>Excel completo listo: <strong>${escapeHtml(file.name)}</strong> (${(file.size / 1024).toFixed(1)} KB)</span>
+                    </span>
+                `;
+                lucide.createIcons();
+            };
+            reader.readAsDataURL(file);
         }
-
-        compressImageFile(file, function(compressedDataUrl) {
-            inputElem.dataset.fileDataUrl = compressedDataUrl;
-            inputElem.dataset.fileName = file.name;
-
-            target.innerHTML = `
-                <span class="file-attached-chip clickable">
-                    <i data-lucide="image"></i>
-                    <span>Imagen lista: <strong>${escapeHtml(file.name)}</strong> (Descarga habilitada)</span>
-                </span>
-            `;
-            lucide.createIcons();
-        });
     } else {
         inputElem.dataset.fileDataUrl = '';
         inputElem.dataset.fileName = '';
@@ -472,14 +441,14 @@ function downloadRequestFile(reqId) {
 
 function renderFileChip(req) {
     if (!req.fileName) return '';
-    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|svg|webp)$/i);
+    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|svg)$/i);
     const iconName = isImage ? 'image' : 'file-spreadsheet';
 
     return `
-        <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar la imagen ${escapeHtml(req.fileName)} a tu PC" style="background:rgba(13,92,171,0.12); color:var(--dn-blue-primary); border:1px solid rgba(13,92,171,0.3); font-weight:700;">
+        <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar ${escapeHtml(req.fileName)} completo en tu PC">
             <i data-lucide="${iconName}"></i>
-            <span>🖼️ ${escapeHtml(req.fileName)}</span>
-            <i data-lucide="download" style="width:13px; margin-left:4px;"></i>
+            <span>📎 ${escapeHtml(req.fileName)}</span>
+            <i data-lucide="download" style="width:12px; margin-left:4px;"></i>
         </button>
     `;
 }
@@ -667,27 +636,6 @@ function toggleBiFields(type) {
 // ==========================================================================
 // 6. PERSISTENCIA DE DATOS LOCAL
 // ==========================================================================
-function checkUrlTicketImport() {
-    try {
-        const params = new URLSearchParams(window.location.search);
-        const importData = params.get('import_req');
-        if (importData) {
-            const req = JSON.parse(decodeURIComponent(importData));
-            if (req && req.id) {
-                const exists = state.requests.some(r => r.id === req.id);
-                if (!exists) {
-                    state.requests.unshift(req);
-                    saveToStorage();
-                    syncCloudData();
-                    showToast(`✅ Solicitud ${req.id} cargada exitosamente en el portal`, 'success');
-                }
-            }
-        }
-    } catch (e) {
-        console.warn("Importación por URL no realizada:", e);
-    }
-}
-
 function loadFromStorage() {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -1207,17 +1155,11 @@ function sendSubmissionConfirmationEmail(req) {
             <div><strong>Categoría:</strong> ${escapeHtml(req.category)}</div>
             <div><strong>Estudio:</strong> ${escapeHtml(req.estudio)} | <strong>País:</strong> ${escapeHtml(req.pais)}</div>
             ${req.pdvCode ? `<div><strong>Detalle / PDVs:</strong> ${escapeHtml(req.pdvCode)}</div>` : ''}
-            ${req.fileName ? `<div><strong>Archivo Adjunto:</strong> 🖼️ ${escapeHtml(req.fileName)}</div>` : ''}
+            ${req.fileName ? `<div><strong>Archivo Adjunto:</strong> 📎 ${escapeHtml(req.fileName)}</div>` : ''}
             <div><strong>Detalle del Requerimiento:</strong> "${escapeHtml(req.detalle)}"</div>
         </div>
 
-        <div style="margin-top:16px; text-align:center;">
-            <a href="https://reporting-dichterneira.github.io/Reporting/?import_req=${encodeURIComponent(JSON.stringify(req))}" target="_blank" style="background:#0D5CAB; color:#FFFFFF; padding:10px 18px; text-decoration:none; border-radius:6px; font-weight:bold; font-size:0.85rem; display:inline-block;">
-                🚀 Ver y Gestionar Solicitud ${escapeHtml(req.id)} en el Portal
-            </a>
-        </div>
-
-        <p style="font-size:0.8rem; color:#64748B; margin-top:12px;">Notificación enviada a: ${escapeHtml(recipientsStr)}</p>
+        <p style="font-size:0.8rem; color:#64748B;">Notificación enviada a: ${escapeHtml(recipientsStr)}</p>
     `;
 
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
@@ -1373,9 +1315,11 @@ function renderFieldHistory() {
     if (!container) return;
 
     const myIds = getMySubmittedIds();
-    const encoladas = state.requests.filter(r => r.category === 'ENCOLADA');
 
-    if (encoladas.length === 0) {
+    // Se muestran TODAS las encoladas recibidas en tiempo real
+    const myEncoladas = state.requests.filter(r => r.category === 'ENCOLADA');
+
+    if (myEncoladas.length === 0) {
         container.innerHTML = `
             <div style="color:var(--text-muted); text-align:center; padding:30px 15px;">
                 <i data-lucide="inbox" style="width:32px; height:32px; stroke-width:1.5; margin-bottom:8px; opacity:0.5; color:var(--dn-blue-primary);"></i>
@@ -1387,7 +1331,7 @@ function renderFieldHistory() {
         return;
     }
 
-    container.innerHTML = encoladas.map(req => {
+    container.innerHTML = myEncoladas.map(req => {
         const isMine = myIds.includes(req.id);
         const isResolved = req.status === 'RESOLVED';
         const isInProgress = req.status === 'IN_PROGRESS';
@@ -1421,15 +1365,12 @@ function renderFieldHistory() {
                     <span class="chip-status ${statusClass}">${statusText}</span>
                 </div>
                 <div style="font-size:0.83rem; color:var(--text-muted); margin-bottom:4px;">
-                    Estudio: <strong>${escapeHtml(req.estudio)}</strong> | País: <strong>${escapeHtml(req.pais)}</strong> | Ola: <strong>${escapeHtml(req.ola || 'N/A')}</strong>
-                </div>
-                <div style="font-size:0.8rem; color:var(--text-dark); margin-bottom:4px;">
-                    Solicitante: <strong>${escapeHtml(req.solicitante || req.email || 'N/A')}</strong>
+                    Estudio: <strong>${escapeHtml(req.estudio)}</strong> | País: <strong>${escapeHtml(req.pais)}</strong> | Ola: <strong>${escapeHtml(req.ola)}</strong>
                 </div>
                 ${req.fileName ? `<div style="margin-bottom:4px;">${renderFileChip(req)}</div>` : ''}
                 ${req.analyst ? `<div style="margin-bottom:4px;"><span class="analyst-chip"><i data-lucide="user-check" style="width:11px"></i> Analista: ${escapeHtml(req.analyst)}</span></div>` : ''}
                 ${isResolved ? `
-                    <div style="margin-top:8px; padding:8px; background:rgba(20,168,59,0.1); border-radius:6px; display:flex; justify-content:space-between; align-items:center;">
+                    <div style="margin-top:8px; padding:8px; background:rgba(20,168,59,0.1); border-radius:6px; display:flex; justify-between; align-items:center;">
                         <span style="font-family:var(--font-mono); color:var(--dn-green); font-weight:800;">Ticket: ${escapeHtml(req.ticketNumber)}</span>
                         <button class="btn-secondary btn-sm" onclick="copyText('${escapeHtml(req.ticketNumber)}')">Copiar</button>
                     </div>
@@ -1446,23 +1387,25 @@ function renderReportingHistory() {
     if (!container) return;
 
     const myIds = getMySubmittedIds();
-    const reportingReqs = state.requests.filter(r => 
+
+    // Se muestran TODAS las solicitudes de Reporting recibidas en tiempo real
+    const myReportingReqs = state.requests.filter(r => 
         r.category === 'BI_EXISTING' || r.category === 'BI_NEW' || r.category === 'BI_SPORADIC'
     );
 
-    if (reportingReqs.length === 0) {
+    if (myReportingReqs.length === 0) {
         container.innerHTML = `
             <div style="color:var(--text-muted); text-align:center; padding:30px 15px;">
                 <i data-lucide="inbox" style="width:32px; height:32px; stroke-width:1.5; margin-bottom:8px; opacity:0.5; color:var(--dn-blue-primary);"></i>
-                <p style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-bottom:4px;">Sin solicitudes de Reporting</p>
-                <small style="font-size:0.78rem; display:block; line-height:1.3; color:var(--text-muted);">Las solicitudes enviadas a Reporting aparecerán aquí en tiempo real.</small>
+                <p style="font-size:0.85rem; font-weight:600; color:var(--text-dark); margin-bottom:4px;">Sin solicitudes en este equipo</p>
+                <small style="font-size:0.78rem; display:block; line-height:1.3; color:var(--text-muted);">Las solicitudes a Reporting que envíes desde tu computador aparecerán aquí para consultar su avance.</small>
             </div>
         `;
         lucide.createIcons();
         return;
     }
 
-    container.innerHTML = reportingReqs.map(req => {
+    container.innerHTML = myReportingReqs.map(req => {
         const isMine = myIds.includes(req.id);
         const isResolved = req.status === 'RESOLVED';
         const isInProgress = req.status === 'IN_PROGRESS';
@@ -1499,7 +1442,7 @@ function renderReportingHistory() {
                 <div style="font-size:0.85rem; font-weight:600; margin-bottom:4px;">
                     ${detailHeader}
                 </div>
-                <div style="font-size:0.8rem; color:var(--text-muted); margin-bottom:4px;">
+                <div style="font-size:0.8rem; color:var(--text-muted);">
                     Estudio: ${escapeHtml(req.estudio)} | País: ${escapeHtml(req.pais)} | Solicitante: ${escapeHtml(req.solicitante || req.email || 'N/A')}
                 </div>
                 ${req.fileName ? `<div style="margin-top:4px;">${renderFileChip(req)}</div>` : ''}
