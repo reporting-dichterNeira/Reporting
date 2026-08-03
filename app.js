@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v800';
+const STORAGE_KEY = 'dn_portal_requests_v900';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1065,23 +1065,27 @@ function renderNovedades() {
 async function handleEncoladaSubmit(e) {
     e.preventDefault();
 
-    const encType = document.querySelector('input[name="encType"]:checked').value;
-    const email = document.getElementById('enc-email').value.trim();
-    const estudio = document.getElementById('enc-estudio').value;
-    const pais = document.getElementById('enc-pais').value;
-    const ola = document.getElementById('enc-ola').value;
-    const solicitante = document.getElementById('enc-solicitante').value.trim() || 'Operaciones D&N';
-    const observaciones = document.getElementById('enc-observaciones').value.trim() || 'Sin observaciones.';
+    const encTypeElement = document.querySelector('input[name="encType"]:checked');
+    const encType = encTypeElement ? encTypeElement.value : 'SPECIFIC_PDVS';
 
-    const fileInput = document.getElementById('enc-file');
-    let fileName = fileInput?.dataset?.fileName || null;
-    let fileDataUrl = fileInput?.dataset?.fileDataUrl || null;
+    const emailElem = document.getElementById('enc-email');
+    const estudioElem = document.getElementById('enc-estudio');
+    const paisElem = document.getElementById('enc-pais');
+    const olaElem = document.getElementById('enc-ola');
+    const solicitanteElem = document.getElementById('enc-solicitante');
+
+    const email = emailElem ? emailElem.value.trim() : '';
+    const estudio = estudioElem ? estudioElem.value : '';
+    const pais = paisElem ? paisElem.value : '';
+    const ola = olaElem ? olaElem.value : '';
+    const solicitante = (solicitanteElem && solicitanteElem.value.trim()) ? solicitanteElem.value.trim() : 'Operaciones D&N';
 
     let pdvCodes = [];
     let isGeneralReview = false;
 
     if (encType === 'SPECIFIC_PDVS') {
-        const pdvsText = document.getElementById('enc-pdvs').value.trim();
+        const pdvsElem = document.getElementById('enc-pdvs');
+        const pdvsText = pdvsElem ? pdvsElem.value.trim() : '';
         pdvCodes = pdvsText
             .split(/[\s,\n]+/)
             .map(s => s.trim().toUpperCase())
@@ -1091,21 +1095,25 @@ async function handleEncoladaSubmit(e) {
         isGeneralReview = true;
     }
 
+    const detalleStr = isGeneralReview 
+        ? 'Revisión General de Estudio Encoladas' 
+        : (pdvCodes.length > 0 ? ('PDVs Encolados: ' + pdvCodes.join(', ')) : 'Solicitud Encolada');
+
     const newReq = {
         id: generateUniqueReqId(),
         category: 'ENCOLADA',
         isGeneralReview: isGeneralReview,
         pdvCodes: pdvCodes,
-        pdvCode: isGeneralReview ? 'Revisión General Estudio' : pdvCodes.join(', '),
+        pdvCode: isGeneralReview ? 'Revisión General Estudio' : (pdvCodes.join(', ') || 'Encolada'),
         email: email,
         estudio: estudio,
         pais: pais,
         ola: ola,
         solicitante: solicitante,
         analyst: null,
-        detalle: observaciones,
-        fileName: fileName,
-        fileDataUrl: fileDataUrl,
+        detalle: detalleStr,
+        fileName: null,
+        fileDataUrl: null,
         status: 'PENDING',
         ticketNumber: null,
         resolutionNote: null,
@@ -1118,8 +1126,9 @@ async function handleEncoladaSubmit(e) {
     recordMySubmittedId(newReq.id);
     await syncCloudData();
 
-    document.getElementById('form-encoladas').reset();
-    document.getElementById('enc-file-info').innerHTML = '';
+    const formElem = document.getElementById('form-encoladas');
+    if (formElem) formElem.reset();
+
     renderAll();
 
     sendSubmissionConfirmationEmail(newReq);
