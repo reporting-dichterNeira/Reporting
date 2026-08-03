@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1000';
+const STORAGE_KEY = 'dn_portal_requests_v1100';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -544,6 +544,10 @@ function updateHeaderSessionUI() {
     const badgeLabel = document.getElementById('session-label');
     const loginBtn = document.getElementById('btn-reporting-login');
     const logoutBtn = document.getElementById('btn-logout');
+
+    const navEncoladasBtn = document.getElementById('nav-btn-encoladas');
+    const navReportingBtn = document.getElementById('nav-btn-reporting');
+
     const navAdminBtn = document.getElementById('nav-btn-admin');
     const navVacacionesBtn = document.getElementById('nav-btn-vacaciones');
     const navAnalyticsBtn = document.getElementById('nav-btn-analytics');
@@ -553,6 +557,11 @@ function updateHeaderSessionUI() {
         if (loginBtn) loginBtn.classList.add('hidden');
         if (logoutBtn) logoutBtn.classList.remove('hidden');
 
+        // Ocultar pestañas públicas de Operaciones al autenticar en modo Reporting Admin
+        if (navEncoladasBtn) navEncoladasBtn.classList.add('hidden');
+        if (navReportingBtn) navReportingBtn.classList.add('hidden');
+
+        // Mostrar pestañas administrativas de Reporting
         if (navAdminBtn) navAdminBtn.classList.remove('hidden');
         if (navVacacionesBtn) navVacacionesBtn.classList.remove('hidden');
         if (navAnalyticsBtn) navAnalyticsBtn.classList.remove('hidden');
@@ -561,6 +570,11 @@ function updateHeaderSessionUI() {
         if (loginBtn) loginBtn.classList.remove('hidden');
         if (logoutBtn) logoutBtn.classList.add('hidden');
 
+        // Mostrar pestañas públicas de Operaciones en modo normal
+        if (navEncoladasBtn) navEncoladasBtn.classList.remove('hidden');
+        if (navReportingBtn) navReportingBtn.classList.remove('hidden');
+
+        // Ocultar pestañas administrativas
         if (navAdminBtn) navAdminBtn.classList.add('hidden');
         if (navVacacionesBtn) navVacacionesBtn.classList.add('hidden');
         if (navAnalyticsBtn) navAnalyticsBtn.classList.add('hidden');
