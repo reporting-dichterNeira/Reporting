@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=600.0">
+    <link rel="stylesheet" href="styles.css?v=700.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -135,7 +135,7 @@
                             <i data-lucide="clock"></i>
                         </div>
                         <h3>SOLICITUDES ENCOLADAS</h3>
-                        <p>Registro formal de requerimientos en cola</p>
+                        <p>Puntos de venta no sincronizados en AG</p>
                     </div>
 
                     <!-- CUADRITO 2: BI NUEVOS -->
@@ -1013,7 +1013,7 @@
 
                 <!-- BLOQUE CONDICIONAL PARA ESTADO 'EN PROCESO' -->
                 <div id="modal-in-progress-fields" class="conditional-block">
-                    <div class="form-group">
+                    <div class="form-group" id="modal-delivery-date-group">
                         <label for="modalDeliveryDate">Fecha Acordada de Entrega <span class="req">*</span></label>
                         <div class="input-with-icon">
                             <i data-lucide="calendar"></i>
@@ -1021,8 +1021,8 @@
                         </div>
                     </div>
                     <div class="form-group">
-                        <label for="modalInProgressNote">Detalle / Comentarios del Acuerdo <span class="req">*</span></label>
-                        <textarea id="modalInProgressNote" rows="2" placeholder="Ej. Según la conversación sostenida, se entregarán los avances en la fecha acordada..."></textarea>
+                        <label for="modalInProgressNote">Detalle / Comentarios del Acuerdo</label>
+                        <textarea id="modalInProgressNote" rows="2" placeholder="Ej. Según la conversación sostenida, se procesará la solicitud..."></textarea>
                     </div>
                 </div>
 
@@ -1040,7 +1040,7 @@
 
                     <div class="form-group">
                         <label for="modalNote">Respuesta / Nota Final para el Solicitante</label>
-                        <textarea id="modalNote" rows="2" placeholder="Ej. Solicitud procesada exitosamente en servidor D&N por la analista..."></textarea>
+                        <textarea id="modalNote" rows="2" placeholder="La solicitud quedó con número de ticket en el portal de Jira de..."></textarea>
                     </div>
                 </div>
             </div>
@@ -1057,6 +1057,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=600.0"></script>
+    <script src="app.js?v=700.0"></script>
 </body>
 </html>
