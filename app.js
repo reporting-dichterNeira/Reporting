@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v400';
+const STORAGE_KEY = 'dn_portal_requests_v500';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1055,9 +1055,6 @@ function renderNovedades() {
     const containerHome = document.getElementById('holidays-container-home');
     if (containerHolidays) containerHolidays.innerHTML = holidaysHTML;
     if (containerHome) containerHome.innerHTML = holidaysHTML;
-
-    lucide.createIcons();
-}
 
     lucide.createIcons();
 }
