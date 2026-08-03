@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=500.0">
+    <link rel="stylesheet" href="styles.css?v=600.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -66,10 +66,6 @@
                 <i data-lucide="file-text"></i>
                 <span>Solicitudes Reporting (BI)</span>
             </button>
-            <button id="nav-btn-novedades" class="nav-tab" onclick="switchTab('novedades')">
-                <i data-lucide="megaphone"></i>
-                <span>Novedades & Festivos</span>
-            </button>
 
             <!-- Pestañas de Reporting (Ocultas por defecto hasta autenticar) -->
             <button id="nav-btn-admin" class="nav-tab admin-tab hidden" onclick="switchTab('admin')">
@@ -119,10 +115,10 @@
         </div>
 
         <!-- ===================================================================
-             SECCIÓN 0: PÁGINA PRINCIPAL DE INICIO CON MOCKUP EXACTO DEL USUARIO
+             SECCIÓN 0: PÁGINA PRINCIPAL DE INICIO (ESTILOS CORPORATIVOS UNIFICADOS)
              =================================================================== -->
         <section id="tab-inicio" class="tab-content active">
-            <!-- BANNER SUPERIOR CON DEGRADADO VERDE ELEGANTE -->
+            <!-- BANNER SUPERIOR CORPORATIVO BLUE & NAVY -->
             <div class="portal-welcome-banner">
                 <h1>BIENVENIDOS AL PORTAL DE REPORTING</h1>
                 <p>Optimiza tus gestiones, solicitudes y accede a la información de forma ágil.</p>
@@ -135,7 +131,7 @@
                 <div class="home-cards-4-grid">
                     <!-- CUADRITO 1: SOLICITUDES ENCOLADAS -->
                     <div class="action-tile-card" onclick="switchTab('encoladas')">
-                        <div class="tile-icon-circle green">
+                        <div class="tile-icon-circle blue">
                             <i data-lucide="clock"></i>
                         </div>
                         <h3>SOLICITUDES ENCOLADAS</h3>
@@ -144,7 +140,7 @@
 
                     <!-- CUADRITO 2: BI NUEVOS -->
                     <div class="action-tile-card" onclick="selectReportingCategory('NEW')">
-                        <div class="tile-icon-circle green">
+                        <div class="tile-icon-circle blue">
                             <i data-lucide="bar-chart-2"></i>
                         </div>
                         <h3>BI NUEVOS</h3>
@@ -153,7 +149,7 @@
 
                     <!-- CUADRITO 3: CAMBIOS EN INFORMES -->
                     <div class="action-tile-card" onclick="selectReportingCategory('EXISTING')">
-                        <div class="tile-icon-circle green">
+                        <div class="tile-icon-circle blue">
                             <i data-lucide="edit-3"></i>
                         </div>
                         <h3>CAMBIOS EN INFORMES</h3>
@@ -162,7 +158,7 @@
 
                     <!-- CUADRITO 4: SOLICITUDES ESPORÁDICAS -->
                     <div class="action-tile-card" onclick="selectReportingCategory('SPORADIC')">
-                        <div class="tile-icon-circle green">
+                        <div class="tile-icon-circle blue">
                             <i data-lucide="zap"></i>
                         </div>
                         <h3>SOLICITUDES ESPORÁDICAS</h3>
@@ -171,47 +167,40 @@
                 </div>
             </div>
 
-            <!-- SECCIÓN 2: NOVEDADES Y DISPONIBILIDAD -->
+            <!-- SECCIÓN 2: NOVEDADES Y DISPONIBILIDAD DE LAS ANALISTAS -->
             <div class="home-section-container" style="margin-top: 32px;">
-                <h2 class="home-section-title">NOVEDADES Y DISPONIBILIDAD</h2>
+                <h2 class="home-section-title">NOVEDADES Y DISPONIBILIDAD DE LAS ANALISTAS</h2>
 
-                <div class="novedades-availability-banner clean-card">
-                    <div class="nav-avail-grid">
-                        <!-- LADO IZQUIERDO: CALENDARIO DE FESTIVOS Y ATENCIÓN -->
-                        <div class="avail-left-box">
-                            <div class="avail-header-mini">
-                                <i data-lucide="calendar"></i>
-                                <span>Festivos Colombia 🇨🇴</span>
+                <div class="grid-two-columns">
+                    <!-- Estado Actual de Analistas -->
+                    <div class="clean-card">
+                        <div class="card-header">
+                            <div class="icon-header blue">
+                                <i data-lucide="users"></i>
                             </div>
-                            <div class="holidays-grid-compact" id="holidays-container-home">
-                                <!-- Generado dinámicamente por JS -->
+                            <div>
+                                <h2>Disponibilidad del Equipo de Analistas</h2>
+                                <p>Novedades sobre vacaciones o ausencias de Mayumi Sanchez y Juliana Chimbi</p>
                             </div>
                         </div>
 
-                        <!-- CENTRO: DISPONIBILIDAD DEL ÁREA DE REPORTING -->
-                        <div class="avail-center-box">
-                            <h3 class="avail-title">Disponibilidad del Área de Reporting</h3>
-                            
-                            <div class="capacity-bar-container">
-                                <div class="capacity-bar-fill" style="width: 95%;">
-                                    <span>OPERATIVO: 95% de Capacidad</span>
-                                </div>
-                            </div>
+                        <div id="analyst-status-feed-home" class="analyst-status-list" style="margin-top: 14px;">
+                            <!-- Generado dinámicamente por JS -->
+                        </div>
+                    </div>
 
-                            <div id="analyst-status-feed-home" class="analyst-status-list-compact" style="margin-top: 14px;">
-                                <!-- Analistas dinámicos por JS -->
+                    <!-- Próximos Días Festivos en Colombia -->
+                    <div class="clean-card">
+                        <div class="card-header space-between">
+                            <div>
+                                <h2>Próximos Festivos en Colombia 🇨🇴</h2>
+                                <p>Días no laborables de hoy en adelante (Sede Reporting)</p>
                             </div>
+                            <span class="chip-status resolved" id="holidays-count-badge-home">0 festivos</span>
                         </div>
 
-                        <!-- LADO DERECHO: HORARIO DE ATENCIÓN Y PRÓXIMO FESTIVO -->
-                        <div class="avail-right-box">
-                            <div class="schedule-badge-card">
-                                <div class="sched-icon"><i data-lucide="clock"></i></div>
-                                <div>
-                                    <strong>Lun - Vie: 8am - 5pm</strong>
-                                    <div id="next-holiday-label" style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">Próximo festivo: Cargando...</div>
-                                </div>
-                            </div>
+                        <div class="holidays-grid" id="holidays-container-home">
+                            <!-- Lista de festivos futuros por JS -->
                         </div>
                     </div>
                 </div>
@@ -621,60 +610,7 @@
         </section>
 
 
-        <!-- ===================================================================
-             SECCIÓN 3: APARTADO DE NOVEDADES & DÍAS FESTIVOS COLOMBIA
-             =================================================================== -->
-        <section id="tab-novedades" class="tab-content">
-            <!-- Banner Informativo Colombia -->
-            <div class="clean-card colombia-info-card">
-                <div class="colombia-info-header">
-                    <div class="colombia-badge">
-                        <span class="flag-icon">🇨🇴</span>
-                        <span>Sede de Reporting Colombia</span>
-                    </div>
-                    <h2><i data-lucide="clock"></i> Información sobre Atención de Solicitudes y Días Festivos</h2>
-                </div>
-                <p class="colombia-info-text">
-                    El equipo de <strong>Reporting de Dichter & Neira</strong> está ubicado centralmente en <strong>Colombia</strong>. 
-                    Por esta razón, si tu solicitud es registrada durante un <strong>día festivo en Colombia</strong> o durante el fin de semana, 
-                    esta será revisada y procesada a primera hora del <strong>siguiente día hábil disponible</strong>.
-                </p>
-            </div>
 
-            <div class="grid-two-columns" style="margin-top:20px;">
-                <!-- Estado Actual de Analistas -->
-                <div class="clean-card">
-                    <div class="card-header">
-                        <div class="icon-header purple">
-                            <i data-lucide="users"></i>
-                        </div>
-                        <div>
-                            <h2>Disponibilidad del Equipo de Analistas</h2>
-                            <p>Novedades sobre vacaciones o ausencias temporales</p>
-                        </div>
-                    </div>
-
-                    <div id="analyst-status-feed" class="analyst-status-list">
-                        <!-- Generado dinámicamente por JS -->
-                    </div>
-                </div>
-
-                <!-- Próximos Días Festivos en Colombia -->
-                <div class="clean-card">
-                    <div class="card-header space-between">
-                        <div>
-                            <h2>Próximos Festivos en Colombia</h2>
-                            <p>Días no laborables de hoy en adelante</p>
-                        </div>
-                        <span class="chip-status resolved" id="holidays-count-badge">0 festivos</span>
-                    </div>
-
-                    <div class="holidays-grid" id="holidays-container">
-                        <!-- Lista de festivos futuros por JS -->
-                    </div>
-                </div>
-            </div>
-        </section>
 
 
         <!-- ===================================================================
@@ -1121,6 +1057,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=500.0"></script>
+    <script src="app.js?v=600.0"></script>
 </body>
 </html>
