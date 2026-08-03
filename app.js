@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1200';
+const STORAGE_KEY = 'dn_portal_requests_v1300';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -615,54 +615,6 @@ function logoutReporting() {
     showToast('Sesión de Reporting cerrada.', 'info');
 }
 
-function navigateStep(direction) {
-    const publicTabs = ['inicio', 'encoladas', 'reporting'];
-    const adminTabs = ['inicio', 'admin', 'vacaciones', 'analytics'];
-
-    const currentTabs = state.isReportingAuthenticated ? adminTabs : publicTabs;
-    const currentIndex = currentTabs.indexOf(state.activeTab || 'inicio');
-
-    let nextIndex = currentIndex;
-    if (direction === 'prev') {
-        nextIndex = Math.max(0, currentIndex - 1);
-    } else if (direction === 'next') {
-        nextIndex = Math.min(currentTabs.length - 1, currentIndex + 1);
-    }
-
-    if (nextIndex !== currentIndex && currentTabs[nextIndex]) {
-        switchTab(currentTabs[nextIndex]);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-}
-
-function updateNavPillButtonsState() {
-    const publicTabs = ['inicio', 'encoladas', 'reporting'];
-    const adminTabs = ['inicio', 'admin', 'vacaciones', 'analytics'];
-    const currentTabs = state.isReportingAuthenticated ? adminTabs : publicTabs;
-
-    const currentIndex = currentTabs.indexOf(state.activeTab || 'inicio');
-
-    document.querySelectorAll('.btn-nav-pill-prev').forEach(btn => {
-        if (currentIndex <= 0) {
-            btn.classList.add('disabled');
-            btn.disabled = true;
-        } else {
-            btn.classList.remove('disabled');
-            btn.disabled = false;
-        }
-    });
-
-    document.querySelectorAll('.btn-nav-pill-next').forEach(btn => {
-        if (currentIndex >= currentTabs.length - 1) {
-            btn.classList.add('disabled');
-            btn.disabled = true;
-        } else {
-            btn.classList.remove('disabled');
-            btn.disabled = false;
-        }
-    });
-}
-
 function switchTab(tabId) {
     if ((tabId === 'admin' || tabId === 'vacaciones' || tabId === 'analytics') && !state.isReportingAuthenticated) {
         openReportingAuthModal();
@@ -690,7 +642,6 @@ function switchTab(tabId) {
         setTimeout(renderAnalyticsCharts, 100);
     }
 
-    updateNavPillButtonsState();
     fetchCloudData();
     lucide.createIcons();
 }
