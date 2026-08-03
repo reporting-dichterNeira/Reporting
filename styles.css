@@ -1325,3 +1325,215 @@ input:focus, select:focus, textarea:focus {
 .email-card-box { background: #FFFFFF; border-left: 4px solid var(--dn-blue-primary); padding: 12px; margin: 12px 0; border-radius: 4px; }
 .email-ticket-highlight { background: rgba(20, 168, 59, 0.1); border: 1px dashed var(--dn-green); padding: 12px; text-align: center; border-radius: 8px; margin: 12px 0; }
 .ticket-code-big { font-family: var(--font-mono); font-size: 1.3rem; font-weight: 800; color: var(--dn-green); }
+
+/* ==========================================================================
+   PÁGINA PRINCIPAL DE INICIO (HOME HERO & BOTONES GRANDES)
+   ========================================================================== */
+.home-hero-container {
+    padding: 10px 0 20px 0;
+}
+
+.home-hero-header {
+    text-align: center;
+    max-width: 760px;
+    margin: 0 auto 30px auto;
+}
+
+.home-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(13, 92, 171, 0.08);
+    color: var(--dn-blue-primary);
+    border: 1px solid rgba(13, 92, 171, 0.2);
+    font-size: 0.8rem;
+    font-weight: 700;
+    padding: 6px 14px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+}
+
+.home-title {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--dn-navy-secondary);
+    margin-bottom: 10px;
+    line-height: 1.25;
+}
+
+.home-subtitle {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+/* GRID DE BOTONES GRANDES */
+.home-action-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+}
+
+.home-action-card {
+    background: #ffffff;
+    border: 1px solid var(--dn-border-light);
+    border-radius: var(--radius-lg);
+    padding: 28px 24px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 4px 18px rgba(13, 92, 171, 0.06);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.home-action-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 36px rgba(13, 92, 171, 0.15);
+}
+
+.home-action-card.card-encoladas {
+    border-top: 5px solid var(--dn-blue-primary);
+}
+
+.home-action-card.card-reporting {
+    border-top: 5px solid var(--dn-purple);
+}
+
+.home-action-card.card-admin {
+    border-top: 5px solid var(--dn-green);
+}
+
+.card-icon-wrapper {
+    width: 60px;
+    height: 60px;
+    border-radius: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    transition: var(--transition);
+}
+
+.card-icon-wrapper i {
+    width: 30px;
+    height: 30px;
+}
+
+.card-encoladas .card-icon-wrapper {
+    background: rgba(13, 92, 171, 0.1);
+    color: var(--dn-blue-primary);
+}
+
+.card-reporting .card-icon-wrapper {
+    background: rgba(112, 51, 255, 0.1);
+    color: var(--dn-purple);
+}
+
+.card-admin .card-icon-wrapper {
+    background: rgba(20, 168, 59, 0.1);
+    color: var(--dn-green);
+}
+
+.home-action-card:hover .card-icon-wrapper {
+    transform: scale(1.1) rotate(-4deg);
+}
+
+.card-badge-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.home-card-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.home-card-badge.blue {
+    background: rgba(13, 92, 171, 0.12);
+    color: var(--dn-blue-primary);
+}
+
+.home-card-badge.purple {
+    background: rgba(112, 51, 255, 0.12);
+    color: var(--dn-purple);
+}
+
+.home-card-badge.green {
+    background: rgba(20, 168, 59, 0.12);
+    color: var(--dn-green);
+}
+
+.home-card-tag {
+    font-size: 0.72rem;
+    color: var(--text-subtle);
+    font-weight: 600;
+}
+
+.home-action-card h2 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--dn-navy-secondary);
+    margin-bottom: 10px;
+    line-height: 1.3;
+}
+
+.home-action-card p {
+    font-size: 0.88rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.card-footer-action {
+    margin-top: auto;
+}
+
+.btn-home-action {
+    width: 100%;
+    padding: 14px 18px;
+    border-radius: var(--radius-md);
+    font-family: var(--font-main);
+    font-size: 0.9rem;
+    font-weight: 700;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: var(--transition);
+}
+
+.btn-home-action.btn-blue {
+    background: var(--dn-blue-primary);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(13, 92, 171, 0.25);
+}
+
+.btn-home-action.btn-purple {
+    background: var(--dn-purple);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(112, 51, 255, 0.25);
+}
+
+.btn-home-action.btn-green {
+    background: var(--dn-green);
+    color: #ffffff;
+    box-shadow: 0 4px 12px rgba(20, 168, 59, 0.25);
+}
+
+.home-action-card:hover .btn-home-action {
+    padding-right: 14px;
+}
+
+.home-action-card:hover .btn-home-action i {
+    transform: translateX(4px);
+}
