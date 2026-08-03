@@ -2,13 +2,13 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1300';
+const STORAGE_KEY = 'dn_portal_requests_v1400';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
 // BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
-const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fb8d6-579d-7824-8255-1eedae288df9';
+const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fc93a-ead2-7266-958b-0ce95158c3e5';
 
 // CREDENCIALES EMAILJS
 const EMAILJS_SERVICE_ID = 'service_b1jhrai';
@@ -133,21 +133,34 @@ document.addEventListener('DOMContentLoaded', () => {
     checkTodayNovelty();
 
     fetchCloudData();
-    setInterval(fetchCloudData, 4000);
+    setInterval(fetchCloudData, 8000);
+
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            fetchCloudData();
+        }
+    });
+
+    window.addEventListener('focus', () => {
+        fetchCloudData();
+    });
 
     lucide.createIcons();
 });
 
 // ==========================================================================
-// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (TIEMPO REAL)
+// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (TIEMPO REAL MULTI-DISPOSITIVO)
 // ==========================================================================
 async function fetchCloudData(userTriggered = false) {
     const syncBadge = document.getElementById('cloud-sync-status');
     try {
-        const resp = await fetch(SYNC_API_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        const resp = await fetch(SYNC_API_URL + '?t=' + Date.now(), {
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+        });
+
         if (resp.ok) {
             const data = await resp.json();
-            
             let updated = false;
 
             if (data && Array.isArray(data.requests)) {
@@ -162,7 +175,7 @@ async function fetchCloudData(userTriggered = false) {
             }
 
             if (data && Array.isArray(data.analystStatus)) {
-                state.analystStatus = data.analystStatus;
+                state.analystStatus = mergeAnalystStatus(state.analystStatus, data.analystStatus);
                 saveNovedadesToStorage();
                 updated = true;
             }
@@ -180,7 +193,7 @@ async function fetchCloudData(userTriggered = false) {
             }
 
             if (userTriggered) {
-                showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes globales)`, 'success');
+                showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes y vacaciones en vivo)`, 'success');
             }
         }
     } catch (e) {
@@ -190,6 +203,48 @@ async function fetchCloudData(userTriggered = false) {
             syncBadge.innerHTML = `⚠️ Modo Local`;
         }
     }
+}
+
+function mergeAnalystStatus(localList, cloudList) {
+    if (!Array.isArray(cloudList) || cloudList.length === 0) return localList || [];
+    if (!Array.isArray(localList) || localList.length === 0) return cloudList || [];
+
+    const map = new Map();
+
+    // 1. Cargar estado de la nube
+    cloudList.forEach(item => {
+        if (item && item.analyst) {
+            map.set(item.analyst, item);
+        }
+    });
+
+    // 2. Fusionar con estado local conservando vacaciones o ausencias registradas
+    localList.forEach(item => {
+        if (item && item.analyst) {
+            if (!map.has(item.analyst)) {
+                map.set(item.analyst, item);
+            } else {
+                const cloudItem = map.get(item.analyst);
+                const preferredStatus = item.status && item.status !== 'DISPONIBLE' ? item.status : cloudItem.status;
+                const preferredDateStart = item.dateStart || cloudItem.dateStart;
+                const preferredDateEnd = item.dateEnd || cloudItem.dateEnd;
+                const preferredDates = item.dates || cloudItem.dates;
+                const preferredNote = item.note || cloudItem.note;
+
+                map.set(item.analyst, {
+                    ...cloudItem,
+                    ...item,
+                    status: preferredStatus,
+                    dateStart: preferredDateStart,
+                    dateEnd: preferredDateEnd,
+                    dates: preferredDates,
+                    note: preferredNote
+                });
+            }
+        }
+    });
+
+    return Array.from(map.values());
 }
 
 function mergeRequests(localArr, cloudArr) {
@@ -222,8 +277,8 @@ function mergeRequests(localArr, cloudArr) {
             const bestFileUrl = (localReq.fileDataUrl && localReq.fileDataUrl.length > (cloudReq.fileDataUrl || '').length) ? localReq.fileDataUrl : cloudReq.fileDataUrl;
 
             map.set(cloudReq.id, {
-                ...cloudReq,
                 ...localReq,
+                ...cloudReq,
                 status: resolvedStatus,
                 analyst: analyst,
                 ticketNumber: ticketNumber,
@@ -244,14 +299,23 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
-    // Obtenemos la última versión de la nube primero para FUSIONAR antes de guardar
+    // Obtenemos la última versión de la nube primero para FUSIONAR AMBOS (solicitudes y vacaciones) antes de guardar
     try {
-        const getResp = await fetch(SYNC_API_URL + '?t=' + Date.now(), { cache: 'no-store' });
+        const getResp = await fetch(SYNC_API_URL + '?t=' + Date.now(), {
+            cache: 'no-store',
+            headers: { 'Accept': 'application/json' }
+        });
         if (getResp.ok) {
             const cloudData = await getResp.json();
-            if (cloudData && Array.isArray(cloudData.requests)) {
-                state.requests = mergeRequests(state.requests, cloudData.requests);
-                saveToStorage();
+            if (cloudData) {
+                if (Array.isArray(cloudData.requests)) {
+                    state.requests = mergeRequests(state.requests, cloudData.requests);
+                    saveToStorage();
+                }
+                if (Array.isArray(cloudData.analystStatus)) {
+                    state.analystStatus = mergeAnalystStatus(state.analystStatus, cloudData.analystStatus);
+                    saveNovedadesToStorage();
+                }
             }
         }
     } catch (e) {
@@ -260,7 +324,7 @@ async function syncCloudData() {
 
     const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 2000000) {
+        if (copy.fileDataUrl && copy.fileDataUrl.length > 1500000) {
             copy.fileDataUrl = null;
         }
         return copy;
@@ -275,20 +339,26 @@ async function syncCloudData() {
     try {
         const resp = await fetch(SYNC_API_URL, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            },
             body: JSON.stringify(payload)
         });
 
         if (!resp.ok) {
-            console.warn("Reintentando sincronización con metadatos de respaldo...");
+            console.warn("Reintentando sincronización liviana...");
             const minReqs = state.requests.map(r => ({ ...r, fileDataUrl: null }));
             await fetch(SYNC_API_URL, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
                 body: JSON.stringify({ requests: minReqs, analystStatus: state.analystStatus, lastUpdated: new Date().toISOString() })
             });
         }
-        console.log("✅ Datos sincronizados correctamente en la nube.");
+        console.log("✅ Datos y Vacaciones sincronizados correctamente en la nube.");
     } catch (e) {
         console.error("Error al publicar en la nube:", e);
     }
