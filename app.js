@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1400';
+const STORAGE_KEY = 'dn_portal_requests_v1500';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -324,7 +324,7 @@ async function syncCloudData() {
 
     const sanitizedRequests = state.requests.map(r => {
         const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 1500000) {
+        if (copy.fileDataUrl && copy.fileDataUrl.length > 6000000) {
             copy.fileDataUrl = null;
         }
         return copy;
@@ -375,7 +375,7 @@ function compressImageFile(file, callback) {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 1200;
+            const maxDim = 1000;
 
             if (width > maxDim || height > maxDim) {
                 if (width > height) {
@@ -390,9 +390,11 @@ function compressImageFile(file, callback) {
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
 
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.70);
             callback(compressedDataUrl);
         };
         img.onerror = function() {
@@ -521,32 +523,18 @@ function downloadRequestFile(reqId) {
         return;
     }
 
-    // 1. Descarga directa del archivo binario original subido (.xlsx, .xls, .csv, .png, .jpg)
+    // 1. Descarga directa del archivo de imagen o Excel real subido (.xlsx, .xls, .csv, .png, .jpg)
     if (req.fileDataUrl && req.fileDataUrl.startsWith('data:')) {
         const blob = dataURLtoBlob(req.fileDataUrl);
         if (blob) {
             triggerBlobDownload(blob, req.fileName);
-            showToast(`Descargando archivo completo original: ${req.fileName}`, 'success');
+            showToast(`Descargando imagen/archivo adjunto original: ${req.fileName}`, 'success');
             return;
         }
     }
 
-    // 2. Respaldo para solicitudes demo antiguas de prueba
-    const ext = req.fileName.split('.').pop().toLowerCase();
-
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-        generateFallbackImageBlob(req, blob => {
-            const outName = req.fileName.match(/\.(png|jpg|jpeg|gif)$/i) ? req.fileName : req.fileName + '.png';
-            triggerBlobDownload(blob, outName);
-            showToast(`Descargando vista previa de imagen: ${outName}`, 'success');
-        });
-    } else {
-        const csvContent = `\uFEFFID_Solicitud,Estudio,Pais,Solicitante,Analista,Estado,Nombre_Archivo,Detalle_Requerimiento\n"${req.id}","${req.estudio}","${req.pais}","${req.solicitante || req.email || ''}","${req.analyst || 'Sin Asignar'}","${req.status}","${req.fileName}","${(req.detalle || '').replace(/"/g, '""')}"`;
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const outName = req.fileName.endsWith('.csv') ? req.fileName : req.fileName.replace(/\.xlsx?$/, '.csv');
-        triggerBlobDownload(blob, outName);
-        showToast(`Descargando archivo de soporte: ${outName}`, 'success');
-    }
+    // 2. Si es una solicitud antigua o sin datos de imagen integrados
+    showToast(`El adjunto ${req.fileName} de esta solicitud antigua no contiene datos de imagen guardados`, 'warning');
 }
 
 function renderFileChip(req) {
