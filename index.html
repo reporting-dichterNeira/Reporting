@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=1000.0">
+    <link rel="stylesheet" href="styles.css?v=1100.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -402,7 +402,7 @@
              SECCIÓN 2: APARTADO SOLICITUDES AL EQUIPO DE REPORTING (POWER BI)
              =================================================================== -->
         <section id="tab-reporting" class="tab-content">
-            <div style="max-width: 840px; margin: 0 auto;">
+            <div class="grid-two-columns">
                 <!-- Formulario Solicitudes Reporting -->
                 <div class="clean-card form-card">
                     <div class="card-header">
@@ -574,6 +574,20 @@
                     </form>
                 </div>
 
+                <!-- Historial Solicitudes Reporting Operaciones en Tiempo Real -->
+                <div class="clean-card">
+                    <div class="card-header space-between">
+                        <div>
+                            <h2>Mis Solicitudes de Reporting</h2>
+                            <p>Estado de tus requerimientos de Power BI en tiempo real</p>
+                        </div>
+                        <button class="btn-secondary btn-sm" onclick="renderReportingHistory()">
+                            <i data-lucide="refresh-cw"></i>
+                        </button>
+                    </div>
+
+                    <div id="list-reporting-history" class="feed-container"></div>
+                </div>
             </div>
         </section>
 
@@ -1025,6 +1039,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=1000.0"></script>
+    <script src="app.js?v=1100.0"></script>
 </body>
 </html>
