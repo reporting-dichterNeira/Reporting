@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v700';
+const STORAGE_KEY = 'dn_portal_requests_v800';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1801,6 +1801,17 @@ function renderAnalyticsCharts() {
 // ==========================================================================
 // 12. MODAL DE GESTIÓN (CAMBIO DE ESTADO, ACUERDO EN PROCESO Y TICKET)
 // ==========================================================================
+function updateJiraNoteFromInput(ticketVal) {
+    const req = state.requests.find(r => r.id === state.activeModalId);
+    if (!req || req.category !== 'ENCOLADA') return;
+
+    const noteElem = document.getElementById('modalNote');
+    const prefix = 'La solicitud quedó con número de ticket en el portal de Jira de ';
+    if (noteElem) {
+        noteElem.value = prefix + (ticketVal ? ticketVal.trim() : '');
+    }
+}
+
 function openModal(id) {
     const req = state.requests.find(r => r.id === id);
     if (!req) return;
@@ -1818,23 +1829,64 @@ function openModal(id) {
     `;
 
     document.getElementById('modalAnalyst').value = req.analyst || '';
-    
-    const currentStatus = req.status || 'PENDING';
-    document.getElementById('modalStatus').value = currentStatus;
-    toggleModalStatusFields(currentStatus);
 
-    // Ocultar fecha de entrega acordada si es una solicitud de Encoladas
+    const statusSelect = document.getElementById('modalStatus');
+    const ticketLabel = document.getElementById('modal-ticket-label');
+    const ticketInput = document.getElementById('modalTicket');
+    const noteElem = document.getElementById('modalNote');
+    const autoBtn = document.getElementById('btn-auto-ticket');
     const deliveryGroup = document.getElementById('modal-delivery-date-group');
-    if (deliveryGroup) {
-        deliveryGroup.style.display = req.category === 'ENCOLADA' ? 'none' : 'block';
-    }
 
-    const defaultJiraNote = 'La solicitud quedó con número de ticket en el portal de Jira de ';
+    if (req.category === 'ENCOLADA') {
+        // Encoladas: Estatus pasa directamente a Gestionado (RESOLVED)
+        statusSelect.innerHTML = `
+            <option value="RESOLVED" selected>🟢 Gestionado</option>
+            <option value="PENDING">🟡 Pendiente (Apenas Llega)</option>
+        `;
+        
+        // Estatus predeterminado Gestionado al abrir
+        const initialStatus = req.status === 'PENDING' ? 'RESOLVED' : (req.status || 'RESOLVED');
+        statusSelect.value = initialStatus;
+        toggleModalStatusFields(initialStatus);
+
+        if (deliveryGroup) deliveryGroup.style.display = 'none';
+        if (autoBtn) autoBtn.style.display = 'none';
+
+        if (ticketLabel) ticketLabel.innerHTML = 'Número de Ticket Jira (Copiar y Pegar de otra plataforma) <span class="req">*</span>';
+        if (ticketInput) ticketInput.placeholder = 'Pega aquí el número de ticket de Jira...';
+
+        ticketInput.value = req.ticketNumber || '';
+
+        const jiraPrefix = 'La solicitud quedó con número de ticket en el portal de Jira de ';
+        if (req.ticketNumber) {
+            noteElem.value = req.resolutionNote || (jiraPrefix + req.ticketNumber);
+        } else {
+            noteElem.value = jiraPrefix;
+        }
+    } else {
+        // Solicitudes de Reporting (BI)
+        statusSelect.innerHTML = `
+            <option value="IN_PROGRESS">🔵 En Proceso (Establecer Fecha Acordada de Entrega)</option>
+            <option value="RESOLVED">🟢 Resuelto (Asignar Ticket de Solución)</option>
+            <option value="PENDING">🟡 Pendiente / En Evaluación</option>
+        `;
+
+        const currentStatus = req.status || 'PENDING';
+        statusSelect.value = currentStatus;
+        toggleModalStatusFields(currentStatus);
+
+        if (deliveryGroup) deliveryGroup.style.display = 'block';
+        if (autoBtn) autoBtn.style.display = 'inline-flex';
+
+        if (ticketLabel) ticketLabel.innerHTML = 'Número de Ticket Asignado / Folio <span class="req">*</span>';
+        if (ticketInput) ticketInput.placeholder = 'Ej. TCK-DN-2026-9042';
+
+        ticketInput.value = req.ticketNumber || '';
+        noteElem.value = req.resolutionNote || '';
+    }
 
     document.getElementById('modalDeliveryDate').value = req.deliveryDate || '';
     document.getElementById('modalInProgressNote').value = req.inProgressNote || '';
-    document.getElementById('modalTicket').value = req.ticketNumber || '';
-    document.getElementById('modalNote').value = req.resolutionNote || defaultJiraNote;
 
     document.getElementById('response-modal').classList.add('active');
     lucide.createIcons();
@@ -1862,13 +1914,12 @@ function closeModal() {
 }
 
 function autoGenerateTicket() {
+    const req = state.requests.find(r => r.id === state.activeModalId);
     const ticket = 'TCK-DN-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
     document.getElementById('modalTicket').value = ticket;
 
-    const noteElem = document.getElementById('modalNote');
-    const defaultPrefix = 'La solicitud quedó con número de ticket en el portal de Jira de ';
-    if (noteElem && (noteElem.value.trim() === defaultPrefix.trim() || !noteElem.value.trim())) {
-        noteElem.value = defaultPrefix + ticket;
+    if (req && req.category === 'ENCOLADA') {
+        updateJiraNoteFromInput(ticket);
     }
 }
 
