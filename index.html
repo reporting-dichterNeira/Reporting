@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=300.0">
+    <link rel="stylesheet" href="styles.css?v=400.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -109,129 +109,99 @@
         </div>
 
         <!-- ===================================================================
-             SECCIÓN 0: PÁGINA PRINCIPAL DE INICIO CON BOTONES GRANDES Y NOVEDADES
+             SECCIÓN 0: PÁGINA PRINCIPAL DE INICIO CON MOCKUP EXACTO DEL USUARIO
              =================================================================== -->
         <section id="tab-inicio" class="tab-content active">
-            <div class="home-hero-container">
-                <div class="home-hero-header">
-                    <span class="home-badge"><i data-lucide="sparkles"></i> Portal Oficial Dichter & Neira</span>
-                    <h1 class="home-title">¿Qué solicitud deseas realizar hoy?</h1>
-                    <p class="home-subtitle">Selecciona una opción para radicar tu requerimiento o consultar el estado de tus solicitudes con el equipo de Reporting.</p>
-                </div>
+            <!-- BANNER SUPERIOR CON DEGRADADO VERDE ELEGANTE -->
+            <div class="portal-welcome-banner">
+                <h1>BIENVENIDOS AL PORTAL DE REPORTING</h1>
+                <p>Optimiza tus gestiones, solicitudes y accede a la información de forma ágil.</p>
+            </div>
 
-                <div class="home-action-cards-grid">
-                    <!-- BOTÓN GRANDE 1: ENCOLADAS PDV -->
-                    <div class="home-action-card card-encoladas" onclick="switchTab('encoladas')">
-                        <div class="card-icon-wrapper">
-                            <i data-lucide="radio"></i>
+            <!-- SECCIÓN 1: GESTA TUS SOLICITUDES (4 CUADRITOS DE ACCIÓN) -->
+            <div class="home-section-container">
+                <h2 class="home-section-title">GESTA TUS SOLICITUDES</h2>
+
+                <div class="home-cards-4-grid">
+                    <!-- CUADRITO 1: SOLICITUDES ENCOLADAS -->
+                    <div class="action-tile-card" onclick="switchTab('encoladas')">
+                        <div class="tile-icon-circle green">
+                            <i data-lucide="clock"></i>
                         </div>
-                        <div class="card-body-content">
-                            <div class="card-badge-row">
-                                <span class="home-card-badge blue">📡 Operaciones PDV</span>
-                                <span class="home-card-tag">Respuesta Rápida</span>
-                            </div>
-                            <h2>Solicitud de Encoladas PDV</h2>
-                            <p>Reporte y revisión de transacciones encoladas en puntos de venta para todas las olas y estudios.</p>
-                            <div class="card-footer-action">
-                                <button class="btn-home-action btn-blue">
-                                    <span>Ingresar Solicitud de Encolada</span>
-                                    <i data-lucide="arrow-right"></i>
-                                </button>
-                            </div>
-                        </div>
+                        <h3>SOLICITUDES ENCOLADAS</h3>
+                        <p>Registro formal de requerimientos en cola</p>
                     </div>
 
-                    <!-- BOTÓN GRANDE 2: REPORTING (POWER BI) -->
-                    <div class="home-action-card card-reporting" onclick="switchTab('reporting')">
-                        <div class="card-icon-wrapper">
-                            <i data-lucide="file-text"></i>
+                    <!-- CUADRITO 2: BI NUEVOS -->
+                    <div class="action-tile-card" onclick="selectReportingCategory('NEW')">
+                        <div class="tile-icon-circle green">
+                            <i data-lucide="bar-chart-2"></i>
                         </div>
-                        <div class="card-body-content">
-                            <div class="card-badge-row">
-                                <span class="home-card-badge purple">📊 Power BI & Reportes</span>
-                                <span class="home-card-tag">Gestión BI</span>
-                            </div>
-                            <h2>Solicitudes a Reporting (BI)</h2>
-                            <p>Creación de tableros nuevos, ajustes a reportes existentes o requerimientos esporádicos.</p>
-                            <div class="card-footer-action">
-                                <button class="btn-home-action btn-purple">
-                                    <span>Ingresar Solicitud Reporting</span>
-                                    <i data-lucide="arrow-right"></i>
-                                </button>
-                            </div>
-                        </div>
+                        <h3>BI NUEVOS</h3>
+                        <p>Desarrollo de nuevos tableros y análisis</p>
                     </div>
 
-                    <!-- BOTÓN GRANDE 3: MESA DE TRABAJO Y ACCESO -->
-                    <div class="home-action-card card-admin" onclick="switchTab('admin')">
-                        <div class="card-icon-wrapper">
-                            <i data-lucide="shield-check"></i>
+                    <!-- CUADRITO 3: CAMBIOS EN INFORMES -->
+                    <div class="action-tile-card" onclick="selectReportingCategory('EXISTING')">
+                        <div class="tile-icon-circle green">
+                            <i data-lucide="edit-3"></i>
                         </div>
-                        <div class="card-body-content">
-                            <div class="card-badge-row">
-                                <span class="home-card-badge green">🛡️ Equipo D&N</span>
-                                <span class="home-card-tag">Mesa de Gestión</span>
-                            </div>
-                            <h2>Mesa de Trabajo Reporting</h2>
-                            <p>Consulta y atención de tickets en tiempo real por el equipo de analistas de Reporting.</p>
-                            <div class="card-footer-action">
-                                <button class="btn-home-action btn-green">
-                                    <span>Ver Mesa de Trabajo</span>
-                                    <i data-lucide="arrow-right"></i>
-                                </button>
-                            </div>
+                        <h3>CAMBIOS EN INFORMES</h3>
+                        <p>Ajustes y actualizaciones de reportes existentes</p>
+                    </div>
+
+                    <!-- CUADRITO 4: SOLICITUDES ESPORÁDICAS -->
+                    <div class="action-tile-card" onclick="selectReportingCategory('SPORADIC')">
+                        <div class="tile-icon-circle green">
+                            <i data-lucide="zap"></i>
                         </div>
+                        <h3>SOLICITUDES ESPORÁDICAS</h3>
+                        <p>Requerimientos puntuales y extraordinarios</p>
                     </div>
                 </div>
             </div>
 
-            <!-- SECCIÓN INFERIOR: FUSIÓN DE NOVEDADES & DISPONIBILIDAD DE LAS ANALISTAS -->
-            <div class="home-novedades-section" style="margin-top: 30px;">
-                <div class="clean-card colombia-info-card">
-                    <div class="colombia-info-header">
-                        <div class="colombia-badge">
-                            <span class="flag-icon">🇨🇴</span>
-                            <span>Sede de Reporting Colombia</span>
-                        </div>
-                        <h2><i data-lucide="clock"></i> Disponibilidad del Equipo y Calendario de Atención</h2>
-                    </div>
-                    <p class="colombia-info-text">
-                        El equipo de <strong>Reporting de Dichter & Neira</strong> está ubicado centralmente en <strong>Colombia</strong>. 
-                        Por esta razón, si tu solicitud es registrada durante un <strong>día festivo en Colombia</strong> o fin de semana, 
-                        será revisada y procesada a primera hora del <strong>siguiente día hábil disponible</strong>.
-                    </p>
-                </div>
+            <!-- SECCIÓN 2: NOVEDADES Y DISPONIBILIDAD -->
+            <div class="home-section-container" style="margin-top: 32px;">
+                <h2 class="home-section-title">NOVEDADES Y DISPONIBILIDAD</h2>
 
-                <div class="grid-two-columns" style="margin-top:20px;">
-                    <!-- Estado Actual de Analistas -->
-                    <div class="clean-card">
-                        <div class="card-header">
-                            <div class="icon-header purple">
-                                <i data-lucide="users"></i>
+                <div class="novedades-availability-banner clean-card">
+                    <div class="nav-avail-grid">
+                        <!-- LADO IZQUIERDO: CALENDARIO DE FESTIVOS Y ATENCIÓN -->
+                        <div class="avail-left-box">
+                            <div class="avail-header-mini">
+                                <i data-lucide="calendar"></i>
+                                <span>Festivos Colombia 🇨🇴</span>
                             </div>
-                            <div>
-                                <h2>Disponibilidad del Equipo de Analistas</h2>
-                                <p>Novedades sobre vacaciones o ausencias de Mayumi Sanchez y Juliana Chimbi</p>
+                            <div class="holidays-grid-compact" id="holidays-container-home">
+                                <!-- Generado dinámicamente por JS -->
                             </div>
                         </div>
 
-                        <div id="analyst-status-feed-home" class="analyst-status-list">
-                            <!-- Generado dinámicamente por JS -->
-                        </div>
-                    </div>
-
-                    <!-- Próximos Días Festivos en Colombia -->
-                    <div class="clean-card">
-                        <div class="card-header space-between">
-                            <div>
-                                <h2>Próximos Festivos en Colombia 🇨🇴</h2>
-                                <p>Días no laborables de hoy en adelante</p>
+                        <!-- CENTRO: DISPONIBILIDAD DEL ÁREA DE REPORTING -->
+                        <div class="avail-center-box">
+                            <h3 class="avail-title">Disponibilidad del Área de Reporting</h3>
+                            
+                            <div class="capacity-bar-container">
+                                <div class="capacity-bar-fill" style="width: 95%;">
+                                    <span>OPERATIVO: 95% de Capacidad</span>
+                                </div>
                             </div>
-                            <span class="chip-status resolved" id="holidays-count-badge-home">0 festivos</span>
+
+                            <div id="analyst-status-feed-home" class="analyst-status-list-compact" style="margin-top: 14px;">
+                                <!-- Analistas dinámicos por JS -->
+                            </div>
                         </div>
 
-                        <div class="holidays-grid" id="holidays-container-home">
-                            <!-- Lista de festivos futuros por JS -->
+                        <!-- LADO DERECHO: HORARIO DE ATENCIÓN Y PRÓXIMO FESTIVO -->
+                        <div class="avail-right-box">
+                            <div class="schedule-badge-card">
+                                <div class="sched-icon"><i data-lucide="clock"></i></div>
+                                <div>
+                                    <strong>Lun - Vie: 8am - 5pm</strong>
+                                    <div id="next-holiday-label" style="font-size:0.78rem; color:var(--text-muted); margin-top:2px;">Próximo festivo: Cargando...</div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1141,6 +1111,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=300.0"></script>
+    <script src="app.js?v=400.0"></script>
 </body>
 </html>
