@@ -13,7 +13,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=400.0">
+    <link rel="stylesheet" href="styles.css?v=500.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -29,6 +29,16 @@
             </div>
         </div>
     </div>
+    <script>
+        setTimeout(function() {
+            var splash = document.getElementById('splash-screen');
+            if (splash) {
+                splash.style.opacity = '0';
+                splash.style.transition = 'opacity 0.5s ease';
+                setTimeout(function() { if (splash && splash.parentNode) splash.parentNode.removeChild(splash); }, 500);
+            }
+        }, 1600);
+    </script>
 
     <!-- Header Principal Dichter & Neira -->
     <header class="app-header">
@@ -1111,6 +1121,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=400.0"></script>
+    <script src="app.js?v=500.0"></script>
 </body>
 </html>
