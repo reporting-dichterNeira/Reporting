@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v300';
+const STORAGE_KEY = 'dn_portal_requests_v400';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -673,6 +673,16 @@ function toggleBiFields(type) {
     }
 }
 
+function selectReportingCategory(type) {
+    switchTab('reporting');
+    const radio = document.querySelector(`input[name="biType"][value="${type}"]`);
+    if (radio) {
+        radio.checked = true;
+        toggleBiFields(type);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 // ==========================================================================
 // 6. PERSISTENCIA DE DATOS LOCAL
 // ==========================================================================
@@ -1031,6 +1041,15 @@ function renderNovedades() {
                 <div class="holiday-name">${escapeHtml(h.name)}</div>
             </div>
         `).join('');
+
+    const nextHolidayLabel = document.getElementById('next-holiday-label');
+    if (nextHolidayLabel) {
+        if (futureHolidays.length > 0) {
+            nextHolidayLabel.textContent = `Próximo festivo: ${futureHolidays[0].dateLabel}`;
+        } else {
+            nextHolidayLabel.textContent = `Sin festivos pendientes`;
+        }
+    }
 
     const containerHolidays = document.getElementById('holidays-container');
     const containerHome = document.getElementById('holidays-container-home');
