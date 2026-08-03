@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v200';
+const STORAGE_KEY = 'dn_portal_requests_v300';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -34,7 +34,7 @@ let state = {
         }
     ],
     isReportingAuthenticated: false,
-    activeTab: 'encoladas',
+    activeTab: 'inicio',
     activeModalId: null,
     charts: {}
 };
@@ -597,7 +597,7 @@ function logoutReporting() {
     state.isReportingAuthenticated = false;
     sessionStorage.removeItem(REPORTING_SESSION_KEY);
     updateHeaderSessionUI();
-    switchTab('encoladas');
+    switchTab('inicio');
     showToast('Sesión de Reporting cerrada.', 'info');
 }
 
@@ -620,7 +620,7 @@ function switchTab(tabId) {
 
     renderAll();
 
-    if (tabId === 'novedades') {
+    if (tabId === 'inicio' || tabId === 'novedades') {
         renderNovedades();
     } else if (tabId === 'vacaciones') {
         renderVacacionesAdminTable();
@@ -962,77 +962,83 @@ function renderVacacionesAdminTable() {
 }
 
 function renderNovedades() {
-    const containerAnalysts = document.getElementById('analyst-status-feed');
-    if (containerAnalysts) {
-        const teamMembers = ['Mayumi Sanchez', 'Juliana Chimbi'];
+    const teamMembers = ['Mayumi Sanchez', 'Juliana Chimbi'];
 
-        containerAnalysts.innerHTML = teamMembers.map(analystName => {
-            const item = state.analystStatus.find(a => a.analyst === analystName && a.status !== 'DISPONIBLE');
+    const analystHTML = teamMembers.map(analystName => {
+        const item = state.analystStatus.find(a => a.analyst === analystName && a.status !== 'DISPONIBLE');
 
-            if (item) {
-                let statusText = '🏖️ En Vacaciones';
-                let badgeClass = 'vacaciones';
-                if (item.status === 'DIA_LIBRE') {
-                    statusText = '🌴 Día Libre';
-                    badgeClass = 'dia_libre';
-                } else if (item.status === 'CAPACITACION') {
-                    statusText = '📚 En Capacitación';
-                    badgeClass = 'capacitacion';
-                }
-
-                return `
-                    <div class="analyst-status-card on-leave">
-                        <div class="analyst-card-top">
-                            <span class="analyst-name-bold">
-                                <i data-lucide="user-check"></i> ${escapeHtml(item.analyst)}
-                            </span>
-                            <span class="status-badge ${badgeClass}">${statusText}</span>
-                        </div>
-                        <div class="analyst-note-text">${escapeHtml(item.note || 'En periodo de ausencia / vacaciones.')}</div>
-                        ${item.dates ? `<div class="analyst-dates-sub">📅 ${escapeHtml(item.dates)}</div>` : ''}
-                    </div>
-                `;
-            } else {
-                return `
-                    <div class="analyst-status-card available">
-                        <div class="analyst-card-top">
-                            <span class="analyst-name-bold">
-                                <i data-lucide="user-check"></i> ${escapeHtml(analystName)}
-                            </span>
-                            <span class="status-badge available">🟢 Disponible</span>
-                        </div>
-                        <div class="analyst-note-text">🟢 Laborando en horario regular. Atendiendo solicitudes de Power BI y Encoladas.</div>
-                        <div class="analyst-dates-sub">📅 Disponible todo el periodo</div>
-                    </div>
-                `;
+        if (item) {
+            let statusText = '🏖️ En Vacaciones';
+            let badgeClass = 'vacaciones';
+            if (item.status === 'DIA_LIBRE') {
+                statusText = '🌴 Día Libre';
+                badgeClass = 'dia_libre';
+            } else if (item.status === 'CAPACITACION') {
+                statusText = '📚 En Capacitación';
+                badgeClass = 'capacitacion';
             }
-        }).join('');
-    }
 
-    const containerHolidays = document.getElementById('holidays-container');
-    const badgeCount = document.getElementById('holidays-count-badge');
+            return `
+                <div class="analyst-status-card on-leave">
+                    <div class="analyst-card-top">
+                        <span class="analyst-name-bold">
+                            <i data-lucide="user-check"></i> ${escapeHtml(item.analyst)}
+                        </span>
+                        <span class="status-badge ${badgeClass}">${statusText}</span>
+                    </div>
+                    <div class="analyst-note-text">${escapeHtml(item.note || 'En periodo de ausencia / vacaciones.')}</div>
+                    ${item.dates ? `<div class="analyst-dates-sub">📅 ${escapeHtml(item.dates)}</div>` : ''}
+                </div>
+            `;
+        } else {
+            return `
+                <div class="analyst-status-card available">
+                    <div class="analyst-card-top">
+                        <span class="analyst-name-bold">
+                            <i data-lucide="user-check"></i> ${escapeHtml(analystName)}
+                        </span>
+                        <span class="status-badge available">🟢 Disponible</span>
+                    </div>
+                    <div class="analyst-note-text">🟢 Laborando en horario regular. Atendiendo solicitudes de Power BI y Encoladas.</div>
+                    <div class="analyst-dates-sub">📅 Disponible todo el periodo</div>
+                </div>
+            `;
+        }
+    }).join('');
+
+    const feed1 = document.getElementById('analyst-status-feed');
+    const feedHome = document.getElementById('analyst-status-feed-home');
+    if (feed1) feed1.innerHTML = analystHTML;
+    if (feedHome) feedHome.innerHTML = analystHTML;
+
     const todayStr = new Date().toISOString().slice(0, 10);
     const futureHolidays = colombianHolidays2026.filter(h => h.iso >= todayStr);
 
-    if (badgeCount) {
-        badgeCount.textContent = `${futureHolidays.length} próximos festivos`;
-    }
+    const countText = `${futureHolidays.length} próximos festivos`;
+    const badge1 = document.getElementById('holidays-count-badge');
+    const badgeHome = document.getElementById('holidays-count-badge-home');
+    if (badge1) badge1.textContent = countText;
+    if (badgeHome) badgeHome.textContent = countText;
 
-    if (containerHolidays) {
-        if (futureHolidays.length === 0) {
-            containerHolidays.innerHTML = `<p style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-muted);">No hay más festivos restantes en el año.</p>`;
-        } else {
-            containerHolidays.innerHTML = futureHolidays.map(h => `
-                <div class="holiday-item">
-                    <div class="holiday-date-box">
-                        <div class="holiday-day">${escapeHtml(h.dateLabel)}</div>
-                        <div class="holiday-month">${escapeHtml(h.day)}</div>
-                    </div>
-                    <div class="holiday-name">${escapeHtml(h.name)}</div>
+    const holidaysHTML = futureHolidays.length === 0
+        ? `<p style="grid-column:1/-1; text-align:center; padding:20px; color:var(--text-muted);">No hay más festivos restantes en el año.</p>`
+        : futureHolidays.map(h => `
+            <div class="holiday-item">
+                <div class="holiday-date-box">
+                    <div class="holiday-day">${escapeHtml(h.dateLabel)}</div>
+                    <div class="holiday-month">${escapeHtml(h.day)}</div>
                 </div>
-            `).join('');
-        }
-    }
+                <div class="holiday-name">${escapeHtml(h.name)}</div>
+            </div>
+        `).join('');
+
+    const containerHolidays = document.getElementById('holidays-container');
+    const containerHome = document.getElementById('holidays-container-home');
+    if (containerHolidays) containerHolidays.innerHTML = holidaysHTML;
+    if (containerHome) containerHome.innerHTML = holidaysHTML;
+
+    lucide.createIcons();
+}
 
     lucide.createIcons();
 }
