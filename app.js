@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v600';
+const STORAGE_KEY = 'dn_portal_requests_v700';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1823,10 +1823,18 @@ function openModal(id) {
     document.getElementById('modalStatus').value = currentStatus;
     toggleModalStatusFields(currentStatus);
 
+    // Ocultar fecha de entrega acordada si es una solicitud de Encoladas
+    const deliveryGroup = document.getElementById('modal-delivery-date-group');
+    if (deliveryGroup) {
+        deliveryGroup.style.display = req.category === 'ENCOLADA' ? 'none' : 'block';
+    }
+
+    const defaultJiraNote = 'La solicitud quedó con número de ticket en el portal de Jira de ';
+
     document.getElementById('modalDeliveryDate').value = req.deliveryDate || '';
     document.getElementById('modalInProgressNote').value = req.inProgressNote || '';
     document.getElementById('modalTicket').value = req.ticketNumber || '';
-    document.getElementById('modalNote').value = req.resolutionNote || '';
+    document.getElementById('modalNote').value = req.resolutionNote || defaultJiraNote;
 
     document.getElementById('response-modal').classList.add('active');
     lucide.createIcons();
@@ -1856,6 +1864,12 @@ function closeModal() {
 function autoGenerateTicket() {
     const ticket = 'TCK-DN-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
     document.getElementById('modalTicket').value = ticket;
+
+    const noteElem = document.getElementById('modalNote');
+    const defaultPrefix = 'La solicitud quedó con número de ticket en el portal de Jira de ';
+    if (noteElem && (noteElem.value.trim() === defaultPrefix.trim() || !noteElem.value.trim())) {
+        noteElem.value = defaultPrefix + ticket;
+    }
 }
 
 function saveModalResponse() {
@@ -1877,12 +1891,13 @@ function saveModalResponse() {
         const deliveryDate = document.getElementById('modalDeliveryDate').value;
         const noteVal = document.getElementById('modalInProgressNote').value.trim();
 
-        if (!deliveryDate) {
+        // Para solicitudes de encoladas NO se exige fecha estimada de entrega
+        if (req.category !== 'ENCOLADA' && !deliveryDate) {
             showToast('Debes ingresar la fecha acordada de entrega', 'warning');
             return;
         }
 
-        req.deliveryDate = deliveryDate;
+        req.deliveryDate = req.category === 'ENCOLADA' ? 'Procesamiento en curso' : deliveryDate;
         req.inProgressNote = noteVal;
         
         syncCloudData();
