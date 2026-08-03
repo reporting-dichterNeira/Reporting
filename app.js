@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1500';
+const STORAGE_KEY = 'dn_portal_requests_v1600';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -533,8 +533,21 @@ function downloadRequestFile(reqId) {
         }
     }
 
-    // 2. Si es una solicitud antigua o sin datos de imagen integrados
-    showToast(`El adjunto ${req.fileName} de esta solicitud antigua no contiene datos de imagen guardados`, 'warning');
+    // 2. Si es una solicitud previa sin datos binarios, generar respaldo informativo sin lanzar error
+    const ext = (req.fileName.split('.').pop() || '').toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+        generateFallbackImageBlob(req, blob => {
+            const outName = req.fileName.match(/\.(png|jpg|jpeg|gif)$/i) ? req.fileName : req.fileName + '.png';
+            triggerBlobDownload(blob, outName);
+            showToast(`Descargando vista previa de imagen: ${outName}`, 'info');
+        });
+    } else {
+        const csvContent = `\uFEFFID_Solicitud,Estudio,Pais,Solicitante,Analista,Estado,Nombre_Archivo,Detalle_Requerimiento\n"${req.id}","${req.estudio}","${req.pais}","${req.solicitante || req.email || ''}","${req.analyst || 'Sin Asignar'}","${req.status}","${req.fileName}","${(req.detalle || '').replace(/"/g, '""')}"`;
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const outName = req.fileName.endsWith('.csv') ? req.fileName : req.fileName.replace(/\.xlsx?$/, '.csv');
+        triggerBlobDownload(blob, outName);
+        showToast(`Descargando archivo de soporte: ${outName}`, 'info');
+    }
 }
 
 function renderFileChip(req) {
