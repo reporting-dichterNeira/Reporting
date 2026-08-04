@@ -2,15 +2,19 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1900';
+const STORAGE_KEY = 'dn_portal_requests_v2000';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
-// BASE DE DATOS DUAL REDUNDANTE EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
-const SYNC_API_URL_PRIMARY = 'https://jsonblob.com/api/jsonBlob/019fccc9-6007-7f8c-9219-3d57a5b764e5';
-const SYNC_API_URL_SECONDARY = 'https://jsonblob.com/api/jsonBlob/019fccc9-614a-7b5a-b22c-049b57fd4574';
-const SYNC_API_URL = SYNC_API_URL_PRIMARY;
+// BASE DE DATOS INFALIBLE DE 4 SERVIDORES ESPEJO MULTI-NUBE
+const CLOUD_ENDPOINTS = [
+    { type: 'RESTFUL', url: 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fccd744b8722e' },
+    { type: 'RESTFUL', url: 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fccd75c7a7230' },
+    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccc9-6007-7f8c-9219-3d57a5b764e5' },
+    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccc9-614a-7b5a-b22c-049b57fd4574' }
+];
+const SYNC_API_URL = CLOUD_ENDPOINTS[0].url;
 
 // FUNCIONES DE SEGURIDAD PARA LECTURA DE FORMULARIOS
 function getInputValue(id, fallback = '') {
@@ -162,81 +166,62 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (DUAL ESPEJO EN TIEMPO REAL)
+// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (4 SERVIDORES MULTI-NUBE)
 // ==========================================================================
 async function fetchCloudData(userTriggered = false) {
     const syncBadge = document.getElementById('cloud-sync-status');
-    let data = null;
+    let mergedCloudRequests = [];
+    let mergedAnalystStatus = [];
     let fetchSuccess = false;
 
-    // 1. Intentar servidor primario
-    try {
-        const resp = await fetch(SYNC_API_URL_PRIMARY + '?t=' + Date.now(), {
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' }
-        });
-        if (resp.ok) {
-            data = await resp.json();
-            fetchSuccess = true;
-        }
-    } catch (e) {
-        console.warn("Servidor primario no disponible, intentando servidor secundario...", e);
-    }
-
-    // 2. Intentar servidor secundario de respaldo si falla el primario
-    if (!fetchSuccess || !data) {
+    for (const endpoint of CLOUD_ENDPOINTS) {
         try {
-            const resp2 = await fetch(SYNC_API_URL_SECONDARY + '?t=' + Date.now(), {
+            const resp = await fetch(endpoint.url + '?t=' + Date.now(), {
                 cache: 'no-store',
                 headers: { 'Accept': 'application/json' }
             });
-            if (resp2.ok) {
-                data = await resp2.json();
-                fetchSuccess = true;
+            if (resp.ok) {
+                const jsonObj = await resp.json();
+                const payload = endpoint.type === 'RESTFUL' ? (jsonObj.data || jsonObj) : jsonObj;
+                if (payload && Array.isArray(payload.requests)) {
+                    mergedCloudRequests = mergeRequests(mergedCloudRequests, payload.requests);
+                    fetchSuccess = true;
+                }
+                if (payload && Array.isArray(payload.analystStatus)) {
+                    mergedAnalystStatus = mergeAnalystStatus(mergedAnalystStatus, payload.analystStatus);
+                    fetchSuccess = true;
+                }
             }
-        } catch (e2) {
-            console.warn("Servidor secundario tampoco respondió:", e2);
+        } catch (e) {
+            console.warn(`Aviso de servidor (${endpoint.url}):`, e);
         }
     }
 
-    if (fetchSuccess && data) {
-        let updated = false;
+    if (fetchSuccess) {
+        state.requests = mergeRequests(state.requests, mergedCloudRequests);
+        saveToStorage();
 
-        if (Array.isArray(data.requests)) {
-            const prevCount = state.requests.length;
-            state.requests = mergeRequests(state.requests, data.requests);
-            saveToStorage();
-            updated = true;
-
-            if (state.requests.length > prevCount && !userTriggered && prevCount > 0) {
-                showToast(`🔔 ¡Nueva solicitud recibida! (Total: ${state.requests.length} globales)`, 'info');
-            }
-        }
-
-        if (Array.isArray(data.analystStatus)) {
-            state.analystStatus = mergeAnalystStatus(state.analystStatus, data.analystStatus);
+        if (mergedAnalystStatus.length > 0) {
+            state.analystStatus = mergeAnalystStatus(state.analystStatus, mergedAnalystStatus);
             saveNovedadesToStorage();
-            updated = true;
         }
 
-        if (updated) {
-            renderAll();
-            renderNovedades();
-            renderVacacionesAdminTable();
-            checkTodayNovelty();
-        }
+        renderAll();
+        renderNovedades();
+        renderVacacionesAdminTable();
+        checkTodayNovelty();
 
         if (syncBadge) {
-            syncBadge.className = 'sync-badge-status online';
+            syncBadge.className = 'sync-badge-status online clickable';
             syncBadge.innerHTML = `<span class="sync-dot-pulse"></span> Nube Conectada`;
         }
 
         if (userTriggered) {
-            showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes globales)`, 'success');
+            showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes globales en vivo)`, 'success');
         }
     } else {
         if (syncBadge) {
-            syncBadge.className = 'sync-badge-status offline';
+            syncBadge.className = 'sync-badge-status offline clickable';
             syncBadge.innerHTML = `⚠️ Modo Local`;
         }
     }
@@ -335,25 +320,23 @@ async function syncCloudData() {
         lastUpdated: new Date().toISOString()
     };
 
-    const jsonStr = JSON.stringify(payload);
+    const restfulBody = JSON.stringify({
+        name: 'DichterNeiraSync',
+        data: payload
+    });
+    const rawBody = JSON.stringify(payload);
 
-    // Escribir en paralelo a servidor primario y secundario espejo
-    const writePromises = [
-        fetch(SYNC_API_URL_PRIMARY, {
+    const writePromises = CLOUD_ENDPOINTS.map(endpoint => {
+        const body = endpoint.type === 'RESTFUL' ? restfulBody : rawBody;
+        return fetch(endpoint.url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: jsonStr
-        }).catch(err => console.warn("Error escribiendo en espejo primario:", err)),
-
-        fetch(SYNC_API_URL_SECONDARY, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: jsonStr
-        }).catch(err => console.warn("Error escribiendo en espejo secundario:", err))
-    ];
+            body: body
+        }).catch(err => console.warn(`Error escribiendo en (${endpoint.url}):`, err));
+    });
 
     await Promise.allSettled(writePromises);
-    console.log("✅ Sincronización multi-servidor completada.");
+    console.log("✅ Sincronización cuádruple multi-nube completada.");
 }
 
 // ==========================================================================
