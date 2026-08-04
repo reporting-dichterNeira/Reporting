@@ -1559,3 +1559,100 @@ input:focus, select:focus, textarea:focus {
     align-items: center;
     justify-content: center;
 }
+
+/* ==========================================================================
+   ESTILO BLOC DE NOTAS PARA IMÁGENES / ADJUNTOS EMBEBIDOS EN PANTALLA
+   ========================================================================== */
+.notepad-image-container {
+    margin-top: 10px;
+    background: #ffffff;
+    border: 1px solid #CBD5E1;
+    border-left: 4px solid #0D5CAB;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    font-family: var(--font-main);
+}
+
+.notepad-header {
+    background: #F8FAFC;
+    padding: 8px 12px;
+    border-bottom: 1px solid #E2E8F0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.notepad-title {
+    font-size: 0.8rem;
+    color: var(--text-dark);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.notepad-title i {
+    width: 14px;
+    height: 14px;
+    color: var(--dn-blue-primary);
+}
+
+.notepad-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-notepad-action {
+    background: #FFFFFF;
+    color: var(--dn-blue-primary);
+    border: 1px solid #CBD5E1;
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.15s ease;
+}
+
+.btn-notepad-action:hover {
+    background: #0D5CAB;
+    color: #FFFFFF;
+    border-color: #0D5CAB;
+}
+
+.btn-notepad-action i {
+    width: 12px;
+    height: 12px;
+}
+
+.notepad-paper-body {
+    padding: 10px;
+    background: #F1F5F9;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100px;
+    max-height: 380px;
+    overflow: auto;
+}
+
+.notepad-embedded-img {
+    max-width: 100%;
+    max-height: 350px;
+    object-fit: contain;
+    border-radius: 6px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.12);
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    background: #FFFFFF;
+}
+
+.notepad-embedded-img:hover {
+    transform: scale(1.01);
+}
