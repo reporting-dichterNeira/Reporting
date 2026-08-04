@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=2500.0">
+    <link rel="stylesheet" href="styles.css?v=2600.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -375,6 +375,14 @@
                             </div>
                         </div>
 
+                        <!-- AVISO DE ENVÍO DE ARCHIVOS / FOTOS POR TEAMS -->
+                        <div class="teams-notice-box" style="background: rgba(13, 92, 171, 0.08); border-left: 4px solid var(--dn-blue-primary); padding: 12px 16px; border-radius: 8px; margin: 16px 0; display: flex; align-items: center; gap: 12px;">
+                            <i data-lucide="message-square" style="color: var(--dn-blue-primary); width: 22px; height: 22px; flex-shrink: 0;"></i>
+                            <div style="font-size: 0.84rem; color: var(--dn-navy-secondary); line-height: 1.45;">
+                                <strong>📌 Nota Importante:</strong> Si necesitas adjuntar una captura de pantalla, imagen o archivo de Excel, por favor compártelo directamente por <strong>Microsoft Teams</strong> al equipo de Reporting (Mayumi Sanchez o Juliana Chimbi).
+                            </div>
+                        </div>
+
                         <button type="submit" class="btn-dn-primary full-width">
                             <i data-lucide="send"></i>
                             <span>Enviar Solicitud de Encolada</span>
@@ -556,17 +564,12 @@
                             <textarea id="rep-solicitud-detalle" rows="3" required placeholder="Describe los cambios a realizar en el filtro/medida o la estructura del nuevo BI..."></textarea>
                         </div>
 
-                        <!-- CARGA DE FOTOS E IMÁGENES EN REPORTING BI -->
-                        <div class="form-group">
-                            <label for="rep-file">Adjuntar Foto / Imagen Soporte (Opcional)</label>
-                            <div class="input-with-icon">
-                                <i data-lucide="camera"></i>
-                                <input type="file" id="rep-file" accept="image/*" onchange="handleFileSelect(this, 'rep-file-info')">
+                        <!-- AVISO DE ENVÍO DE ARCHIVOS / FOTOS POR TEAMS -->
+                        <div class="teams-notice-box" style="background: rgba(109, 55, 169, 0.08); border-left: 4px solid var(--dn-purple); padding: 12px 16px; border-radius: 8px; margin: 16px 0; display: flex; align-items: center; gap: 12px;">
+                            <i data-lucide="message-square" style="color: var(--dn-purple); width: 22px; height: 22px; flex-shrink: 0;"></i>
+                            <div style="font-size: 0.84rem; color: var(--dn-navy-secondary); line-height: 1.45;">
+                                <strong>📌 Nota Importante:</strong> Si necesitas adjuntar una imagen, captura de pantalla o archivo de Excel, por favor compártelo directamente por <strong>Microsoft Teams</strong> al equipo de Reporting (Mayumi Sanchez o Juliana Chimbi).
                             </div>
-                            <small style="color:var(--text-muted); font-size:0.75rem; margin-top:4px; display:block;">
-                                💡 Si requiere enviar un archivo Excel o documento, por favor enviarlo por Teams al equipo de Reporting.
-                            </small>
-                            <div id="rep-file-info" class="file-attached-info"></div>
                         </div>
 
                         <button type="submit" class="btn-dn-primary full-width">
@@ -1051,6 +1054,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=2500.0"></script>
+    <script src="app.js?v=2600.0"></script>
 </body>
 </html>
