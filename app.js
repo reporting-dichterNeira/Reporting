@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2600';
+const STORAGE_KEY = 'dn_portal_requests_v2700';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -25,10 +25,10 @@ function getRadioValue(name, fallback = '') {
     return (elem && elem.value) ? elem.value : fallback;
 }
 
-// CREDENCIALES EMAILJS
-const EMAILJS_SERVICE_ID = 'service_b1jhrai';
-const EMAILJS_TEMPLATE_ID = 'template_cpy03f3';
-const EMAILJS_PUBLIC_KEY = 'OfXawgXmm_YWqDj4B';
+// CREDENCIALES EMAILJS (NUEVAS LLAVES ACTIVAS)
+const EMAILJS_SERVICE_ID = 'service_bf7cena';
+const EMAILJS_TEMPLATE_ID = 'template_zomfa45';
+const EMAILJS_PUBLIC_KEY = 'w3eOdNyd3VAC3XVtb';
 
 // CORREOS DEL EQUIPO DE REPORTING
 const REPORTING_TEAM_EMAILS = [
@@ -1374,10 +1374,27 @@ function sendSubmissionConfirmationEmail(req) {
         <p style="font-size:0.8rem; color:#64748B;">Notificación enviada a: ${escapeHtml(recipientsStr)}</p>
     `;
 
-    // Vista previa interna de notificación de correo
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
-    console.log("Notificación por correo en pausa temporal para pruebas en vivo del portal.");
-    showToast(`✅ Solicitud ${req.id} registrada en el portal`, 'success');
+
+    if (typeof emailjs !== 'undefined') {
+        allRecipients.forEach(email => {
+            const templateParams = {
+                to_email: email,
+                subject: subject,
+                message: htmlBody,
+                name: 'Reporting Dichter & Neira'
+            };
+
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
+                .then(function() {
+                    console.log(`EmailJS enviado a: ${email}`);
+                }, function(error) {
+                    console.error(`Error enviando EmailJS a ${email}:`, error);
+                });
+        });
+
+        showToast(`📧 Notificación enviada a ${userEmail} y al Equipo de Reporting`, 'success');
+    }
 }
 
 function sendInProgressEmail(req) {
@@ -1409,7 +1426,19 @@ function sendInProgressEmail(req) {
     `;
 
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
-    showToast(`🔵 Estado cambiado a En Proceso para solicitud ${req.id}`, 'info');
+
+    if (typeof emailjs !== 'undefined') {
+        allRecipients.forEach(email => {
+            const templateParams = {
+                to_email: email,
+                subject: subject,
+                message: htmlBody,
+                name: 'Reporting Dichter & Neira'
+            };
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+        });
+        showToast(`📧 Notificación de Estado En Proceso enviada a ${userEmail}`, 'info');
+    }
 }
 
 function sendResolutionTicketEmail(req) {
@@ -1433,7 +1462,19 @@ function sendResolutionTicketEmail(req) {
     `;
 
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
-    showToast(`🟢 Solicitud ${req.id} resuelta con ticket ${req.ticketNumber}`, 'success');
+
+    if (typeof emailjs !== 'undefined') {
+        allRecipients.forEach(email => {
+            const templateParams = {
+                to_email: email,
+                subject: subject,
+                message: htmlBody,
+                name: 'Reporting Dichter & Neira'
+            };
+            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
+        });
+        showToast(`📧 Correo con Ticket enviado a ${userEmail}`, 'success');
+    }
 }
 
 // ==========================================================================
