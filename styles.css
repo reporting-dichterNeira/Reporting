@@ -604,6 +604,10 @@ body.dn-light-theme {
     gap: 10px;
 }
 
+.sync-badge-status {
+    display: none !important;
+}
+
 .user-badge-info {
     display: flex;
     align-items: center;
