@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2400';
+const STORAGE_KEY = 'dn_portal_requests_v2500';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -129,6 +129,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }, 1800);
 
+    // Destrucción forzada de cualquier insignia badge residual en caché
+    document.querySelectorAll('#cloud-sync-status, .sync-badge-status').forEach(el => el.remove());
+
     loadFromStorage();
     loadNovedadesFromStorage();
 
@@ -205,19 +208,13 @@ async function fetchCloudData(userTriggered = false) {
         renderVacacionesAdminTable();
         checkTodayNovelty();
 
-        if (syncBadge) {
-            syncBadge.className = 'sync-badge-status online clickable';
-            syncBadge.innerHTML = `<span class="sync-dot-pulse"></span> Nube Conectada`;
-        }
+        document.querySelectorAll('#cloud-sync-status, .sync-badge-status').forEach(el => el.remove());
 
         if (userTriggered) {
             showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes globales en vivo)`, 'success');
         }
     } else {
-        if (syncBadge) {
-            syncBadge.className = 'sync-badge-status online clickable';
-            syncBadge.innerHTML = `<span class="sync-dot-pulse"></span> Nube Conectada`;
-        }
+        document.querySelectorAll('#cloud-sync-status, .sync-badge-status').forEach(el => el.remove());
     }
 }
 
