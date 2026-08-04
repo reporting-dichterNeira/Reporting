@@ -2,17 +2,15 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2000';
+const STORAGE_KEY = 'dn_portal_requests_v2100';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
-// BASE DE DATOS INFALIBLE DE 4 SERVIDORES ESPEJO MULTI-NUBE
+// BASE DE DATOS INFALIBLE DE SERVIDORES ESPEJO MULTI-NUBE EN TIEMPO REAL
 const CLOUD_ENDPOINTS = [
-    { type: 'RESTFUL', url: 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fccd744b8722e' },
-    { type: 'RESTFUL', url: 'https://api.restful-api.dev/objects/ff8081819f7e10ae019fccd75c7a7230' },
-    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccc9-6007-7f8c-9219-3d57a5b764e5' },
-    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccc9-614a-7b5a-b22c-049b57fd4574' }
+    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccdd-7867-7929-90e3-070e56bd1f44' },
+    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccdd-9337-70a5-b73c-843561126852' }
 ];
 const SYNC_API_URL = CLOUD_ENDPOINTS[0].url;
 
@@ -134,10 +132,6 @@ document.addEventListener('DOMContentLoaded', () => {
     loadFromStorage();
     loadNovedadesFromStorage();
 
-    if (state.requests.length === 0) {
-        seedInitialMockData();
-    }
-
     const savedAuth = sessionStorage.getItem(REPORTING_SESSION_KEY);
     if (savedAuth === 'true') {
         state.isReportingAuthenticated = true;
@@ -150,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkTodayNovelty();
 
     fetchCloudData();
-    setInterval(fetchCloudData, 10000);
+    setInterval(fetchCloudData, 5000);
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
