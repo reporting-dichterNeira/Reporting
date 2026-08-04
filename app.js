@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1600';
+const STORAGE_KEY = 'dn_portal_requests_v1700';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -550,14 +550,142 @@ function downloadRequestFile(reqId) {
     }
 }
 
+async function copyImageToClipboard(reqId) {
+    const req = state.requests.find(r => r.id === reqId);
+    if (!req || !req.fileDataUrl) {
+        showToast('No hay datos de imagen disponibles para copiar', 'warning');
+        return;
+    }
+
+    try {
+        const blob = dataURLtoBlob(req.fileDataUrl);
+        if (blob && navigator.clipboard && window.ClipboardItem) {
+            const item = new ClipboardItem({ [blob.type || 'image/png']: blob });
+            await navigator.clipboard.write([item]);
+            showToast('📋 ¡Imagen copiada al portapapeles! Presiona Ctrl+V para pegar.', 'success');
+        } else {
+            const imgElem = document.getElementById(`img-preview-${reqId}`);
+            if (imgElem) {
+                const range = document.createRange();
+                range.selectNode(imgElem);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                showToast('📋 Imagen seleccionada y copiada al portapapeles.', 'success');
+            }
+        }
+    } catch (err) {
+        console.error("Error al copiar imagen:", err);
+        showToast('Haz clic derecho sobre la imagen y selecciona "Copiar imagen"', 'info');
+    }
+}
+
+function openImageZoomModal(reqId) {
+    const req = state.requests.find(r => r.id === reqId);
+    if (!req) return;
+
+    let imgSrc = req.fileDataUrl;
+    if (!imgSrc || !imgSrc.startsWith('data:')) {
+        generateFallbackImageBlob(req, blob => {
+            const reader = new FileReader();
+            reader.onload = e => showZoomModalContent(req, e.target.result);
+            reader.readAsDataURL(blob);
+        });
+        return;
+    }
+    showZoomModalContent(req, imgSrc);
+}
+
+function showZoomModalContent(req, imgSrc) {
+    let modal = document.getElementById('image-zoom-modal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'image-zoom-modal';
+        modal.className = 'modal-backdrop';
+        document.body.appendChild(modal);
+    }
+
+    modal.innerHTML = `
+        <div class="modal-box" style="max-width: 850px; padding: 20px; text-align: center;">
+            <div class="modal-header">
+                <h3><i data-lucide="image"></i> ${escapeHtml(req.fileName || 'Vista previa de Imagen')}</h3>
+                <button class="close-btn" onclick="closeImageZoomModal()">&times;</button>
+            </div>
+            <div style="margin: 15px 0; background: #0F172A; border-radius: 8px; overflow: hidden; padding: 12px; display: flex; justify-content: center; align-items: center;">
+                <img src="${imgSrc}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 4px;" alt="Zoom" />
+            </div>
+            <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
+                <button class="btn-dn-primary" onclick="copyImageToClipboard('${req.id}')">
+                    <i data-lucide="copy"></i> Copiar Imagen (Ctrl+V)
+                </button>
+                <button class="btn-secondary" onclick="downloadRequestFile('${req.id}')">
+                    <i data-lucide="download"></i> Descargar Imagen
+                </button>
+                <button class="btn-secondary" onclick="closeImageZoomModal()">Cerrar</button>
+            </div>
+        </div>
+    `;
+    modal.classList.add('active');
+    modal.style.display = 'flex';
+    lucide.createIcons();
+}
+
+function closeImageZoomModal() {
+    const modal = document.getElementById('image-zoom-modal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.display = 'none';
+    }
+}
+
 function renderFileChip(req) {
     if (!req.fileName) return '';
-    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|svg)$/i);
-    const iconName = isImage ? 'image' : 'file-spreadsheet';
+
+    const isImage = req.fileName.match(/\.(png|jpg|jpeg|gif|webp|svg)$/i);
+
+    if (isImage) {
+        let imgSrc = req.fileDataUrl;
+        let isRealImage = imgSrc && imgSrc.startsWith('data:');
+
+        return `
+            <div class="notepad-image-container">
+                <div class="notepad-header">
+                    <span class="notepad-title">
+                        <i data-lucide="image"></i> Imagen / Adjunto: <strong>${escapeHtml(req.fileName)}</strong>
+                    </span>
+                    <div class="notepad-actions">
+                        ${isRealImage ? `
+                            <button type="button" class="btn-notepad-action" onclick="copyImageToClipboard('${req.id}')" title="Copiar imagen al portapapeles">
+                                <i data-lucide="copy"></i> Copiar Imagen
+                            </button>
+                        ` : ''}
+                        <button type="button" class="btn-notepad-action" onclick="openImageZoomModal('${req.id}')" title="Ver / Ampliar imagen">
+                            <i data-lucide="maximize-2"></i> Ver Imagen
+                        </button>
+                        <button type="button" class="btn-notepad-action" onclick="downloadRequestFile('${req.id}')" title="Descargar archivo">
+                            <i data-lucide="download"></i> Descargar
+                        </button>
+                    </div>
+                </div>
+                <div class="notepad-paper-body">
+                    ${isRealImage ? `
+                        <img id="img-preview-${req.id}" src="${imgSrc}" alt="${escapeHtml(req.fileName)}" class="notepad-embedded-img" onclick="openImageZoomModal('${req.id}')" title="Haz clic para ampliar o clic derecho para copiar imagen" />
+                    ` : `
+                        <div style="text-align:center; padding:15px 10px; color:var(--text-muted);">
+                            <i data-lucide="file-image" style="width:28px; height:28px; stroke-width:1.5; color:var(--dn-blue-primary); opacity:0.7; margin-bottom:4px;"></i>
+                            <div style="font-size:0.8rem; font-weight:600; color:var(--text-dark);">Vista previa de Bloc de Notas (${escapeHtml(req.fileName)})</div>
+                            <small style="font-size:0.75rem; color:var(--text-muted);">Solicitud anterior. Haz clic en "Ver Imagen" o "Descargar" para ver el detalle gráfico.</small>
+                        </div>
+                    `}
+                </div>
+            </div>
+        `;
+    }
 
     return `
         <button type="button" class="file-attached-chip clickable" onclick="downloadRequestFile('${req.id}')" title="Haz clic para descargar ${escapeHtml(req.fileName)} completo en tu PC">
-            <i data-lucide="${iconName}"></i>
+            <i data-lucide="file-spreadsheet"></i>
             <span>📎 ${escapeHtml(req.fileName)}</span>
             <i data-lucide="download" style="width:12px; margin-left:4px;"></i>
         </button>
