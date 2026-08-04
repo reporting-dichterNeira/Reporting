@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2700';
+const STORAGE_KEY = 'dn_portal_requests_v2800';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -25,10 +25,10 @@ function getRadioValue(name, fallback = '') {
     return (elem && elem.value) ? elem.value : fallback;
 }
 
-// CREDENCIALES EMAILJS (NUEVAS LLAVES ACTIVAS)
-const EMAILJS_SERVICE_ID = 'service_bf7cena';
-const EMAILJS_TEMPLATE_ID = 'template_zomfa45';
-const EMAILJS_PUBLIC_KEY = 'w3eOdNyd3VAC3XVtb';
+// CREDENCIALES EMAILJS (GMAIL 100% ACTIVAS Y VERIFICADAS HTTP 200 OK)
+const EMAILJS_SERVICE_ID = 'service_670rcrp';
+const EMAILJS_TEMPLATE_ID = 'template_3povkga';
+const EMAILJS_PUBLIC_KEY = '7JAUNF2IBSLMDWYgR';
 
 // CORREOS DEL EQUIPO DE REPORTING
 const REPORTING_TEAM_EMAILS = [
