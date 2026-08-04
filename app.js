@@ -2,13 +2,26 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1800';
+const STORAGE_KEY = 'dn_portal_requests_v1900';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
-// BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
-const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fccc1-e0e7-76f6-9d27-86bef55a22de';
+// BASE DE DATOS DUAL REDUNDANTE EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
+const SYNC_API_URL_PRIMARY = 'https://jsonblob.com/api/jsonBlob/019fccc9-6007-7f8c-9219-3d57a5b764e5';
+const SYNC_API_URL_SECONDARY = 'https://jsonblob.com/api/jsonBlob/019fccc9-614a-7b5a-b22c-049b57fd4574';
+const SYNC_API_URL = SYNC_API_URL_PRIMARY;
+
+// FUNCIONES DE SEGURIDAD PARA LECTURA DE FORMULARIOS
+function getInputValue(id, fallback = '') {
+    const elem = document.getElementById(id);
+    return (elem && elem.value) ? elem.value.trim() : fallback;
+}
+
+function getRadioValue(name, fallback = '') {
+    const elem = document.querySelector(`input[name="${name}"]:checked`);
+    return (elem && elem.value) ? elem.value : fallback;
+}
 
 // CREDENCIALES EMAILJS
 const EMAILJS_SERVICE_ID = 'service_b1jhrai';
@@ -133,7 +146,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkTodayNovelty();
 
     fetchCloudData();
-    setInterval(fetchCloudData, 8000);
+    setInterval(fetchCloudData, 10000);
 
     document.addEventListener('visibilitychange', () => {
         if (!document.hidden) {
@@ -149,55 +162,79 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (TIEMPO REAL MULTI-DISPOSITIVO)
+// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (DUAL ESPEJO EN TIEMPO REAL)
 // ==========================================================================
 async function fetchCloudData(userTriggered = false) {
     const syncBadge = document.getElementById('cloud-sync-status');
+    let data = null;
+    let fetchSuccess = false;
+
+    // 1. Intentar servidor primario
     try {
-        const resp = await fetch(SYNC_API_URL + '?t=' + Date.now(), {
+        const resp = await fetch(SYNC_API_URL_PRIMARY + '?t=' + Date.now(), {
             cache: 'no-store',
             headers: { 'Accept': 'application/json' }
         });
-
         if (resp.ok) {
-            const data = await resp.json();
-            let updated = false;
-
-            if (data && Array.isArray(data.requests)) {
-                const prevCount = state.requests.length;
-                state.requests = mergeRequests(state.requests, data.requests);
-                saveToStorage();
-                updated = true;
-
-                if (state.requests.length > prevCount && !userTriggered && prevCount > 0) {
-                    showToast(`🔔 ¡Nueva solicitud recibida! (Total: ${state.requests.length} globales)`, 'info');
-                }
-            }
-
-            if (data && Array.isArray(data.analystStatus)) {
-                state.analystStatus = mergeAnalystStatus(state.analystStatus, data.analystStatus);
-                saveNovedadesToStorage();
-                updated = true;
-            }
-
-            if (updated) {
-                renderAll();
-                renderNovedades();
-                renderVacacionesAdminTable();
-                checkTodayNovelty();
-            }
-
-            if (syncBadge) {
-                syncBadge.className = 'sync-badge-status online';
-                syncBadge.innerHTML = `<span class="sync-dot-pulse"></span> Nube Conectada`;
-            }
-
-            if (userTriggered) {
-                showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes y vacaciones en vivo)`, 'success');
-            }
+            data = await resp.json();
+            fetchSuccess = true;
         }
     } catch (e) {
-        console.warn("Nube no disponible temporalmente:", e);
+        console.warn("Servidor primario no disponible, intentando servidor secundario...", e);
+    }
+
+    // 2. Intentar servidor secundario de respaldo si falla el primario
+    if (!fetchSuccess || !data) {
+        try {
+            const resp2 = await fetch(SYNC_API_URL_SECONDARY + '?t=' + Date.now(), {
+                cache: 'no-store',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (resp2.ok) {
+                data = await resp2.json();
+                fetchSuccess = true;
+            }
+        } catch (e2) {
+            console.warn("Servidor secundario tampoco respondió:", e2);
+        }
+    }
+
+    if (fetchSuccess && data) {
+        let updated = false;
+
+        if (Array.isArray(data.requests)) {
+            const prevCount = state.requests.length;
+            state.requests = mergeRequests(state.requests, data.requests);
+            saveToStorage();
+            updated = true;
+
+            if (state.requests.length > prevCount && !userTriggered && prevCount > 0) {
+                showToast(`🔔 ¡Nueva solicitud recibida! (Total: ${state.requests.length} globales)`, 'info');
+            }
+        }
+
+        if (Array.isArray(data.analystStatus)) {
+            state.analystStatus = mergeAnalystStatus(state.analystStatus, data.analystStatus);
+            saveNovedadesToStorage();
+            updated = true;
+        }
+
+        if (updated) {
+            renderAll();
+            renderNovedades();
+            renderVacacionesAdminTable();
+            checkTodayNovelty();
+        }
+
+        if (syncBadge) {
+            syncBadge.className = 'sync-badge-status online';
+            syncBadge.innerHTML = `<span class="sync-dot-pulse"></span> Nube Conectada`;
+        }
+
+        if (userTriggered) {
+            showToast(`🔄 Nube sincronizada (${state.requests.length} solicitudes globales)`, 'success');
+        }
+    } else {
         if (syncBadge) {
             syncBadge.className = 'sync-badge-status offline';
             syncBadge.innerHTML = `⚠️ Modo Local`;
@@ -211,14 +248,12 @@ function mergeAnalystStatus(localList, cloudList) {
 
     const map = new Map();
 
-    // 1. Cargar estado de la nube
     cloudList.forEach(item => {
         if (item && item.analyst) {
             map.set(item.analyst, item);
         }
     });
 
-    // 2. Fusionar con estado local conservando vacaciones o ausencias registradas
     localList.forEach(item => {
         if (item && item.analyst) {
             if (!map.has(item.analyst)) {
@@ -253,14 +288,12 @@ function mergeRequests(localArr, cloudArr) {
 
     const map = new Map();
 
-    // 1. Insertar primero las solicitudes de la nube (fuente de verdad del servidor)
     cloudArr.forEach(cloudReq => {
         if (cloudReq && cloudReq.id) {
             map.set(cloudReq.id, cloudReq);
         }
     });
 
-    // 2. Fusionar solicitudes locales sin borrar información de la nube
     localArr.forEach(localReq => {
         if (!localReq || !localReq.id) return;
 
@@ -268,24 +301,21 @@ function mergeRequests(localArr, cloudArr) {
             map.set(localReq.id, localReq);
         } else {
             const cloudReq = map.get(localReq.id);
-            const resolvedStatus = (cloudReq.status && cloudReq.status !== 'PENDING') ? cloudReq.status : localReq.status;
-            const analyst = cloudReq.analyst || localReq.analyst;
-            const ticketNumber = cloudReq.ticketNumber || localReq.ticketNumber;
-            const deliveryDate = cloudReq.deliveryDate || localReq.deliveryDate;
-            const inProgressNote = cloudReq.inProgressNote || localReq.inProgressNote;
-            const resolutionNote = cloudReq.resolutionNote || localReq.resolutionNote;
-            const bestFileUrl = (localReq.fileDataUrl && localReq.fileDataUrl.length > (cloudReq.fileDataUrl || '').length) ? localReq.fileDataUrl : cloudReq.fileDataUrl;
+            const statusOrder = { 'RESOLVED': 3, 'IN_PROGRESS': 2, 'PENDING': 1 };
+            const localStatusWeight = statusOrder[localReq.status] || 1;
+            const cloudStatusWeight = statusOrder[cloudReq.status] || 1;
+            const finalStatus = cloudStatusWeight >= localStatusWeight ? cloudReq.status : localReq.status;
 
             map.set(cloudReq.id, {
                 ...localReq,
                 ...cloudReq,
-                status: resolvedStatus,
-                analyst: analyst,
-                ticketNumber: ticketNumber,
-                deliveryDate: deliveryDate,
-                inProgressNote: inProgressNote,
-                resolutionNote: resolutionNote,
-                fileDataUrl: bestFileUrl
+                status: finalStatus,
+                analyst: cloudReq.analyst || localReq.analyst,
+                ticketNumber: cloudReq.ticketNumber || localReq.ticketNumber,
+                deliveryDate: cloudReq.deliveryDate || localReq.deliveryDate,
+                inProgressNote: cloudReq.inProgressNote || localReq.inProgressNote,
+                resolutionNote: cloudReq.resolutionNote || localReq.resolutionNote,
+                fileDataUrl: cloudReq.fileDataUrl || localReq.fileDataUrl
             });
         }
     });
@@ -299,52 +329,31 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
-    try {
-        const getResp = await fetch(SYNC_API_URL + '?t=' + Date.now(), {
-            cache: 'no-store',
-            headers: { 'Accept': 'application/json' }
-        });
-        if (getResp.ok) {
-            const cloudData = await getResp.json();
-            if (cloudData) {
-                if (Array.isArray(cloudData.requests)) {
-                    state.requests = mergeRequests(state.requests, cloudData.requests);
-                    saveToStorage();
-                }
-                if (Array.isArray(cloudData.analystStatus)) {
-                    state.analystStatus = mergeAnalystStatus(state.analystStatus, cloudData.analystStatus);
-                    saveNovedadesToStorage();
-                }
-            }
-        }
-    } catch (e) {
-        console.warn("No se pudo obtener el estado previo de la nube:", e);
-    }
-
     const payload = {
         requests: state.requests,
         analystStatus: state.analystStatus,
         lastUpdated: new Date().toISOString()
     };
 
-    try {
-        const resp = await fetch(SYNC_API_URL, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+    const jsonStr = JSON.stringify(payload);
 
-        if (resp.ok) {
-            console.log("✅ Datos e Imágenes sincronizados correctamente en la nube.");
-        } else {
-            console.warn("Aviso al publicar en la nube:", resp.status);
-        }
-    } catch (e) {
-        console.error("Error al publicar en la nube:", e);
-    }
+    // Escribir en paralelo a servidor primario y secundario espejo
+    const writePromises = [
+        fetch(SYNC_API_URL_PRIMARY, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: jsonStr
+        }).catch(err => console.warn("Error escribiendo en espejo primario:", err)),
+
+        fetch(SYNC_API_URL_SECONDARY, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: jsonStr
+        }).catch(err => console.warn("Error escribiendo en espejo secundario:", err))
+    ];
+
+    await Promise.allSettled(writePromises);
+    console.log("✅ Sincronización multi-servidor completada.");
 }
 
 // ==========================================================================
@@ -1213,131 +1222,151 @@ function renderNovedades() {
 async function handleEncoladaSubmit(e) {
     e.preventDefault();
 
-    const encTypeElement = document.querySelector('input[name="encType"]:checked');
-    const encType = encTypeElement ? encTypeElement.value : 'SPECIFIC_PDVS';
+    try {
+        const encType = getRadioValue('encType', 'SPECIFIC_PDVS');
+        const email = getInputValue('enc-email');
+        const estudio = getInputValue('enc-estudio');
+        const pais = getInputValue('enc-pais');
+        const ola = getInputValue('enc-ola');
+        const solicitante = getInputValue('enc-solicitante') || 'Operaciones D&N';
 
-    const emailElem = document.getElementById('enc-email');
-    const estudioElem = document.getElementById('enc-estudio');
-    const paisElem = document.getElementById('enc-pais');
-    const olaElem = document.getElementById('enc-ola');
-    const solicitanteElem = document.getElementById('enc-solicitante');
+        let pdvCodes = [];
+        let isGeneralReview = false;
 
-    const email = emailElem ? emailElem.value.trim() : '';
-    const estudio = estudioElem ? estudioElem.value : '';
-    const pais = paisElem ? paisElem.value : '';
-    const ola = olaElem ? olaElem.value : '';
-    const solicitante = (solicitanteElem && solicitanteElem.value.trim()) ? solicitanteElem.value.trim() : 'Operaciones D&N';
+        if (encType === 'SPECIFIC_PDVS') {
+            const pdvsText = getInputValue('enc-pdvs');
+            pdvCodes = pdvsText
+                .split(/[\s,\n]+/)
+                .map(s => s.trim().toUpperCase())
+                .filter(s => s.length > 0)
+                .map(s => s.startsWith('PDV-') ? s : 'PDV-' + s);
+        } else {
+            isGeneralReview = true;
+        }
 
-    let pdvCodes = [];
-    let isGeneralReview = false;
+        const detalleStr = isGeneralReview 
+            ? 'Revisión General de Estudio Encoladas' 
+            : (pdvCodes.length > 0 ? ('PDVs Encolados: ' + pdvCodes.join(', ')) : 'Solicitud Encolada');
 
-    if (encType === 'SPECIFIC_PDVS') {
-        const pdvsElem = document.getElementById('enc-pdvs');
-        const pdvsText = pdvsElem ? pdvsElem.value.trim() : '';
-        pdvCodes = pdvsText
-            .split(/[\s,\n]+/)
-            .map(s => s.trim().toUpperCase())
-            .filter(s => s.length > 0)
-            .map(s => s.startsWith('PDV-') ? s : 'PDV-' + s);
-    } else {
-        isGeneralReview = true;
+        const newReq = {
+            id: generateUniqueReqId(),
+            category: 'ENCOLADA',
+            isGeneralReview: isGeneralReview,
+            pdvCodes: pdvCodes,
+            pdvCode: isGeneralReview ? 'Revisión General Estudio' : (pdvCodes.join(', ') || 'Encolada'),
+            email: email,
+            estudio: estudio,
+            pais: pais,
+            ola: ola,
+            solicitante: solicitante,
+            analyst: null,
+            detalle: detalleStr,
+            fileName: null,
+            fileDataUrl: null,
+            status: 'PENDING',
+            ticketNumber: null,
+            resolutionNote: null,
+            createdAt: new Date().toISOString(),
+            resolvedAt: null
+        };
+
+        // 1. Guardar de inmediato en estado local y renderizar (sin latencia de red)
+        state.requests.unshift(newReq);
+        recordMySubmittedId(newReq.id);
+        saveToStorage();
+        renderAll();
+
+        // 2. Limpiar formulario
+        const formElem = document.getElementById('form-encoladas');
+        if (formElem) formElem.reset();
+
+        // 3. Notificación al usuario y correo EmailJS
+        showToast(`✅ Solicitud ${newReq.id} ingresada exitosamente`, 'success');
+        sendSubmissionConfirmationEmail(newReq);
+
+        // 4. Sincronizar en segundo plano a servidores espejo
+        syncCloudData();
+
+    } catch (err) {
+        console.error("Error al registrar solicitud de Encoladas:", err);
+        showToast("Ocurrió un inconveniente al registrar la solicitud. Por favor intenta de nuevo.", "error");
     }
-
-    const detalleStr = isGeneralReview 
-        ? 'Revisión General de Estudio Encoladas' 
-        : (pdvCodes.length > 0 ? ('PDVs Encolados: ' + pdvCodes.join(', ')) : 'Solicitud Encolada');
-
-    const newReq = {
-        id: generateUniqueReqId(),
-        category: 'ENCOLADA',
-        isGeneralReview: isGeneralReview,
-        pdvCodes: pdvCodes,
-        pdvCode: isGeneralReview ? 'Revisión General Estudio' : (pdvCodes.join(', ') || 'Encolada'),
-        email: email,
-        estudio: estudio,
-        pais: pais,
-        ola: ola,
-        solicitante: solicitante,
-        analyst: null,
-        detalle: detalleStr,
-        fileName: null,
-        fileDataUrl: null,
-        status: 'PENDING',
-        ticketNumber: null,
-        resolutionNote: null,
-        createdAt: new Date().toISOString(),
-        resolvedAt: null
-    };
-
-    await fetchCloudData();
-    state.requests.unshift(newReq);
-    recordMySubmittedId(newReq.id);
-    await syncCloudData();
-
-    const formElem = document.getElementById('form-encoladas');
-    if (formElem) formElem.reset();
-
-    renderAll();
-
-    sendSubmissionConfirmationEmail(newReq);
 }
 
 async function handleReportingSubmit(e) {
     e.preventDefault();
 
-    const biType = document.querySelector('input[name="biType"]:checked').value;
-    const email = document.getElementById('rep-email').value.trim();
-    const estudio = document.getElementById('rep-estudio').value;
-    const pais = document.getElementById('rep-pais').value;
-    const detalle = document.getElementById('rep-solicitud-detalle').value.trim();
+    try {
+        const biType = getRadioValue('biType', 'EXISTING');
+        const email = getInputValue('rep-email');
+        const estudio = getInputValue('rep-estudio');
+        const pais = getInputValue('rep-pais');
+        const detalle = getInputValue('rep-solicitud-detalle');
 
-    const fileInput = document.getElementById('rep-file');
-    let fileName = fileInput?.dataset?.fileName || null;
-    let fileDataUrl = fileInput?.dataset?.fileDataUrl || null;
+        const fileInput = document.getElementById('rep-file');
+        let fileName = fileInput?.dataset?.fileName || null;
+        let fileDataUrl = fileInput?.dataset?.fileDataUrl || null;
 
-    let catName = 'BI_EXISTING';
-    if (biType === 'NEW') catName = 'BI_NEW';
-    else if (biType === 'SPORADIC') catName = 'BI_SPORADIC';
+        let catName = 'BI_EXISTING';
+        if (biType === 'NEW') catName = 'BI_NEW';
+        else if (biType === 'SPORADIC') catName = 'BI_SPORADIC';
 
-    const newReq = {
-        id: generateUniqueReqId(),
-        category: catName,
-        email: email,
-        estudio: estudio,
-        pais: pais,
-        analyst: null,
-        detalle: detalle,
-        fileName: fileName,
-        fileDataUrl: fileDataUrl,
-        status: 'PENDING',
-        ticketNumber: null,
-        resolutionNote: null,
-        createdAt: new Date().toISOString(),
-        resolvedAt: null
-    };
+        const newReq = {
+            id: generateUniqueReqId(),
+            category: catName,
+            email: email,
+            estudio: estudio,
+            pais: pais,
+            analyst: null,
+            detalle: detalle,
+            fileName: fileName,
+            fileDataUrl: fileDataUrl,
+            status: 'PENDING',
+            ticketNumber: null,
+            resolutionNote: null,
+            createdAt: new Date().toISOString(),
+            resolvedAt: null
+        };
 
-    if (biType === 'EXISTING') {
-        newReq.usuario = document.getElementById('rep-usuario').value.trim();
-        newReq.biNameToEdit = document.getElementById('rep-bi-name').value.trim();
-        newReq.solicitante = newReq.usuario;
-    } else if (biType === 'NEW') {
-        newReq.frecuencia = document.getElementById('rep-frecuencia').value;
-        newReq.area = document.getElementById('rep-area').value.trim();
-        newReq.solicitante = `Área: ${newReq.area}`;
-    } else {
-        newReq.solicitante = email;
+        if (biType === 'EXISTING') {
+            newReq.usuario = getInputValue('rep-usuario');
+            newReq.biNameToEdit = getInputValue('rep-bi-name');
+            newReq.solicitante = newReq.usuario || email;
+        } else if (biType === 'NEW') {
+            newReq.frecuencia = getInputValue('rep-frecuencia');
+            newReq.area = getInputValue('rep-area');
+            newReq.solicitante = newReq.area ? `Área: ${newReq.area}` : email;
+        } else {
+            newReq.solicitante = email;
+        }
+
+        // 1. Guardar de inmediato en estado local y renderizar (sin latencia de red)
+        state.requests.unshift(newReq);
+        recordMySubmittedId(newReq.id);
+        saveToStorage();
+        renderAll();
+
+        // 2. Limpiar formulario
+        const formElem = document.getElementById('form-reporting');
+        if (formElem) formElem.reset();
+        const fileInfo = document.getElementById('rep-file-info');
+        if (fileInfo) fileInfo.innerHTML = '';
+        if (fileInput) {
+            delete fileInput.dataset.fileName;
+            delete fileInput.dataset.fileDataUrl;
+        }
+
+        // 3. Notificación al usuario y correo EmailJS
+        showToast(`✅ Solicitud ${newReq.id} enviada exitosamente`, 'success');
+        sendSubmissionConfirmationEmail(newReq);
+
+        // 4. Sincronizar en segundo plano a servidores espejo
+        syncCloudData();
+
+    } catch (err) {
+        console.error("Error al registrar solicitud de Reporting:", err);
+        showToast("Ocurrió un inconveniente al enviar la solicitud. Por favor intenta de nuevo.", "error");
     }
-
-    await fetchCloudData();
-    state.requests.unshift(newReq);
-    recordMySubmittedId(newReq.id);
-    await syncCloudData();
-
-    document.getElementById('form-reporting').reset();
-    document.getElementById('rep-file-info').innerHTML = '';
-    renderAll();
-
-    sendSubmissionConfirmationEmail(newReq);
 }
 
 // ==========================================================================
@@ -1645,9 +1674,9 @@ function renderReportingHistory() {
             statusClass = 'in_progress';
         }
 
-        let detailHeader = `BI: ${escapeHtml(req.biNameToEdit)}`;
-        if (isNew) detailHeader = `Área: ${escapeHtml(req.area)} (Frecuencia: ${escapeHtml(req.frecuencia)})`;
-        if (isSporadic) detailHeader = `Requerimiento Esporádico`;
+        let detailHeader = `BI: ${escapeHtml(req.biNameToEdit || 'Power BI')}`;
+        if (isNew) detailHeader = `Área: ${escapeHtml(req.area || 'General')} (Frecuencia: ${escapeHtml(req.frecuencia || 'N/A')})`;
+        if (isSporadic) detailHeader = `Requerimiento Esporádico: ${escapeHtml((req.detalle || '').slice(0, 45))}`;
 
         return `
             <div class="item-card">
