@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2500';
+const STORAGE_KEY = 'dn_portal_requests_v2600';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1277,10 +1277,6 @@ async function handleReportingSubmit(e) {
         const pais = getInputValue('rep-pais');
         const detalle = getInputValue('rep-solicitud-detalle');
 
-        const fileInput = document.getElementById('rep-file');
-        let fileName = fileInput?.dataset?.fileName || null;
-        let fileDataUrl = fileInput?.dataset?.fileDataUrl || null;
-
         let catName = 'BI_EXISTING';
         if (biType === 'NEW') catName = 'BI_NEW';
         else if (biType === 'SPORADIC') catName = 'BI_SPORADIC';
@@ -1293,8 +1289,8 @@ async function handleReportingSubmit(e) {
             pais: pais,
             analyst: null,
             detalle: detalle,
-            fileName: fileName,
-            fileDataUrl: fileDataUrl,
+            fileName: null,
+            fileDataUrl: null,
             status: 'PENDING',
             ticketNumber: null,
             resolutionNote: null,
@@ -1323,14 +1319,8 @@ async function handleReportingSubmit(e) {
         // 2. Limpiar formulario
         const formElem = document.getElementById('form-reporting');
         if (formElem) formElem.reset();
-        const fileInfo = document.getElementById('rep-file-info');
-        if (fileInfo) fileInfo.innerHTML = '';
-        if (fileInput) {
-            delete fileInput.dataset.fileName;
-            delete fileInput.dataset.fileDataUrl;
-        }
 
-        // 3. Notificación al usuario y correo EmailJS
+        // 3. Notificación al usuario
         showToast(`✅ Solicitud ${newReq.id} enviada exitosamente`, 'success');
         sendSubmissionConfirmationEmail(newReq);
 
