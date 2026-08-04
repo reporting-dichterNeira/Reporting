@@ -2,13 +2,13 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v1700';
+const STORAGE_KEY = 'dn_portal_requests_v1800';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
 // BASE DE DATOS EN LA NUBE PARA SINCRONIZACIÓN MULTI-DISPOSITIVO
-const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fc93a-ead2-7266-958b-0ce95158c3e5';
+const SYNC_API_URL = 'https://jsonblob.com/api/jsonBlob/019fccc1-e0e7-76f6-9d27-86bef55a22de';
 
 // CREDENCIALES EMAILJS
 const EMAILJS_SERVICE_ID = 'service_b1jhrai';
@@ -299,7 +299,6 @@ async function syncCloudData() {
     saveToStorage();
     saveNovedadesToStorage();
 
-    // Obtenemos la última versión de la nube primero para FUSIONAR AMBOS (solicitudes y vacaciones) antes de guardar
     try {
         const getResp = await fetch(SYNC_API_URL + '?t=' + Date.now(), {
             cache: 'no-store',
@@ -322,16 +321,8 @@ async function syncCloudData() {
         console.warn("No se pudo obtener el estado previo de la nube:", e);
     }
 
-    const sanitizedRequests = state.requests.map(r => {
-        const copy = { ...r };
-        if (copy.fileDataUrl && copy.fileDataUrl.length > 6000000) {
-            copy.fileDataUrl = null;
-        }
-        return copy;
-    });
-
     const payload = {
-        requests: sanitizedRequests,
+        requests: state.requests,
         analystStatus: state.analystStatus,
         lastUpdated: new Date().toISOString()
     };
@@ -346,19 +337,11 @@ async function syncCloudData() {
             body: JSON.stringify(payload)
         });
 
-        if (!resp.ok) {
-            console.warn("Reintentando sincronización liviana...");
-            const minReqs = state.requests.map(r => ({ ...r, fileDataUrl: null }));
-            await fetch(SYNC_API_URL, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json'
-                },
-                body: JSON.stringify({ requests: minReqs, analystStatus: state.analystStatus, lastUpdated: new Date().toISOString() })
-            });
+        if (resp.ok) {
+            console.log("✅ Datos e Imágenes sincronizados correctamente en la nube.");
+        } else {
+            console.warn("Aviso al publicar en la nube:", resp.status);
         }
-        console.log("✅ Datos y Vacaciones sincronizados correctamente en la nube.");
     } catch (e) {
         console.error("Error al publicar en la nube:", e);
     }
@@ -375,7 +358,7 @@ function compressImageFile(file, callback) {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const maxDim = 1000;
+            const maxDim = 700;
 
             if (width > maxDim || height > maxDim) {
                 if (width > height) {
@@ -394,7 +377,7 @@ function compressImageFile(file, callback) {
             ctx.fillRect(0, 0, width, height);
             ctx.drawImage(img, 0, 0, width, height);
 
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.70);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.55);
             callback(compressedDataUrl);
         };
         img.onerror = function() {
@@ -481,41 +464,6 @@ function triggerBlobDownload(blob, filename) {
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function generateFallbackImageBlob(req, callback) {
-    const canvas = document.createElement('canvas');
-    canvas.width = 800;
-    canvas.height = 450;
-    const ctx = canvas.getContext('2d');
-
-    const grad = ctx.createLinearGradient(0, 0, 800, 450);
-    grad.addColorStop(0, '#0D5CAB');
-    grad.addColorStop(1, '#24335F');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 800, 450);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.fillText('DICHTER & NEIRA - REGISTRO DE ADJUNTO', 40, 50);
-
-    ctx.fillStyle = '#33BDEE';
-    ctx.font = 'bold 18px sans-serif';
-    ctx.fillText(`Solicitud ID: ${req.id}`, 40, 90);
-
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-    ctx.fillRect(40, 110, 720, 290);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '16px sans-serif';
-    ctx.fillText(`Nombre de Archivo: ${req.fileName}`, 60, 150);
-    ctx.fillText(`Estudio: ${req.estudio} | País: ${req.pais}`, 60, 190);
-    ctx.fillText(`Solicitante: ${req.email || req.solicitante || 'N/A'}`, 60, 230);
-    ctx.fillText(`Analista Asignada: ${req.analyst || 'Sin Asignar'}`, 60, 270);
-    ctx.fillText(`Estado Actual: ${req.status}`, 60, 310);
-    ctx.fillText(`Detalle: "${(req.detalle || '').slice(0, 65)}"`, 60, 350);
-
-    canvas.toBlob(blob => callback(blob), 'image/png');
-}
-
 function downloadRequestFile(reqId) {
     const req = state.requests.find(r => r.id === reqId);
     if (!req || !req.fileName) {
@@ -523,31 +471,16 @@ function downloadRequestFile(reqId) {
         return;
     }
 
-    // 1. Descarga directa del archivo de imagen o Excel real subido (.xlsx, .xls, .csv, .png, .jpg)
     if (req.fileDataUrl && req.fileDataUrl.startsWith('data:')) {
         const blob = dataURLtoBlob(req.fileDataUrl);
         if (blob) {
             triggerBlobDownload(blob, req.fileName);
-            showToast(`Descargando imagen/archivo adjunto original: ${req.fileName}`, 'success');
+            showToast(`Descargando imagen/archivo original: ${req.fileName}`, 'success');
             return;
         }
     }
 
-    // 2. Si es una solicitud previa sin datos binarios, generar respaldo informativo sin lanzar error
-    const ext = (req.fileName.split('.').pop() || '').toLowerCase();
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
-        generateFallbackImageBlob(req, blob => {
-            const outName = req.fileName.match(/\.(png|jpg|jpeg|gif)$/i) ? req.fileName : req.fileName + '.png';
-            triggerBlobDownload(blob, outName);
-            showToast(`Descargando vista previa de imagen: ${outName}`, 'info');
-        });
-    } else {
-        const csvContent = `\uFEFFID_Solicitud,Estudio,Pais,Solicitante,Analista,Estado,Nombre_Archivo,Detalle_Requerimiento\n"${req.id}","${req.estudio}","${req.pais}","${req.solicitante || req.email || ''}","${req.analyst || 'Sin Asignar'}","${req.status}","${req.fileName}","${(req.detalle || '').replace(/"/g, '""')}"`;
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-        const outName = req.fileName.endsWith('.csv') ? req.fileName : req.fileName.replace(/\.xlsx?$/, '.csv');
-        triggerBlobDownload(blob, outName);
-        showToast(`Descargando archivo de soporte: ${outName}`, 'info');
-    }
+    showToast(`El archivo ${req.fileName} pertenece a una prueba anterior. Las nuevas solicitudes sincronizan la imagen real a todos los equipos.`, 'info');
 }
 
 async function copyImageToClipboard(reqId) {
@@ -586,18 +519,8 @@ function openImageZoomModal(reqId) {
     if (!req) return;
 
     let imgSrc = req.fileDataUrl;
-    if (!imgSrc || !imgSrc.startsWith('data:')) {
-        generateFallbackImageBlob(req, blob => {
-            const reader = new FileReader();
-            reader.onload = e => showZoomModalContent(req, e.target.result);
-            reader.readAsDataURL(blob);
-        });
-        return;
-    }
-    showZoomModalContent(req, imgSrc);
-}
+    let isRealImage = imgSrc && imgSrc.startsWith('data:');
 
-function showZoomModalContent(req, imgSrc) {
     let modal = document.getElementById('image-zoom-modal');
     if (!modal) {
         modal = document.createElement('div');
@@ -612,16 +535,28 @@ function showZoomModalContent(req, imgSrc) {
                 <h3><i data-lucide="image"></i> ${escapeHtml(req.fileName || 'Vista previa de Imagen')}</h3>
                 <button class="close-btn" onclick="closeImageZoomModal()">&times;</button>
             </div>
-            <div style="margin: 15px 0; background: #0F172A; border-radius: 8px; overflow: hidden; padding: 12px; display: flex; justify-content: center; align-items: center;">
-                <img src="${imgSrc}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 4px;" alt="Zoom" />
+            <div style="margin: 15px 0; background: #0F172A; border-radius: 8px; overflow: hidden; padding: 20px; display: flex; justify-content: center; align-items: center;">
+                ${isRealImage ? `
+                    <img src="${imgSrc}" style="max-width: 100%; max-height: 70vh; object-fit: contain; border-radius: 4px;" alt="Zoom" />
+                ` : `
+                    <div style="color: #94A3B8; text-align: center; padding: 30px 20px;">
+                        <i data-lucide="image-off" style="width:48px; height:48px; opacity:0.6; margin-bottom:12px; color:#38BDF8;"></i>
+                        <h4 style="color:#F8FAFC; margin-bottom:8px; font-size:1.1rem;">Adjunto local (${escapeHtml(req.fileName)})</h4>
+                        <p style="font-size:0.88rem; line-height:1.5; max-width:550px; margin:0 auto; color:#CBD5E1;">
+                            Esta es una solicitud de prueba anterior. Las <strong>nuevas solicitudes</strong> con imágenes ahora se sincronizan en <strong>tiempo real a todos los computadores</strong> en alta definición.
+                        </p>
+                    </div>
+                `}
             </div>
             <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 15px;">
-                <button class="btn-dn-primary" onclick="copyImageToClipboard('${req.id}')">
-                    <i data-lucide="copy"></i> Copiar Imagen (Ctrl+V)
-                </button>
-                <button class="btn-secondary" onclick="downloadRequestFile('${req.id}')">
-                    <i data-lucide="download"></i> Descargar Imagen
-                </button>
+                ${isRealImage ? `
+                    <button class="btn-dn-primary" onclick="copyImageToClipboard('${req.id}')">
+                        <i data-lucide="copy"></i> Copiar Imagen (Ctrl+V)
+                    </button>
+                    <button class="btn-secondary" onclick="downloadRequestFile('${req.id}')">
+                        <i data-lucide="download"></i> Descargar Imagen
+                    </button>
+                ` : ''}
                 <button class="btn-secondary" onclick="closeImageZoomModal()">Cerrar</button>
             </div>
         </div>
