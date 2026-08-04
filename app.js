@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2100';
+const STORAGE_KEY = 'dn_portal_requests_v2200';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1387,27 +1387,10 @@ function sendSubmissionConfirmationEmail(req) {
         <p style="font-size:0.8rem; color:#64748B;">Notificación enviada a: ${escapeHtml(recipientsStr)}</p>
     `;
 
+    // Vista previa interna de notificación de correo
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
-
-    if (typeof emailjs !== 'undefined') {
-        allRecipients.forEach(email => {
-            const templateParams = {
-                to_email: email,
-                subject: subject,
-                message: htmlBody,
-                name: 'Reporting Dichter & Neira'
-            };
-
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams)
-                .then(function() {
-                    console.log(`EmailJS enviado a: ${email}`);
-                }, function(error) {
-                    console.error(`Error enviando EmailJS a ${email}:`, error);
-                });
-        });
-
-        showToast(`📧 ¡Notificación enviada a ${userEmail} y al Equipo de Reporting (${REPORTING_TEAM_EMAILS.join(', ')})!`, 'success');
-    }
+    console.log("Notificación por correo en pausa temporal para pruebas en vivo del portal.");
+    showToast(`✅ Solicitud ${req.id} registrada en el portal`, 'success');
 }
 
 function sendInProgressEmail(req) {
@@ -1439,19 +1422,7 @@ function sendInProgressEmail(req) {
     `;
 
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
-
-    if (typeof emailjs !== 'undefined') {
-        allRecipients.forEach(email => {
-            const templateParams = {
-                to_email: email,
-                subject: subject,
-                message: htmlBody,
-                name: 'Reporting Dichter & Neira'
-            };
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
-        });
-        showToast(`📧 ¡Notificación de Estado En Proceso enviada a ${userEmail} y al equipo de Reporting!`, 'success');
-    }
+    showToast(`🔵 Estado cambiado a En Proceso para solicitud ${req.id}`, 'info');
 }
 
 function sendResolutionTicketEmail(req) {
@@ -1475,19 +1446,7 @@ function sendResolutionTicketEmail(req) {
     `;
 
     openEmailPreviewModal(recipientsStr, subject, htmlBody);
-
-    if (typeof emailjs !== 'undefined') {
-        allRecipients.forEach(email => {
-            const templateParams = {
-                to_email: email,
-                subject: subject,
-                message: htmlBody,
-                name: 'Reporting Dichter & Neira'
-            };
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
-        });
-        showToast(`📧 ¡Correo con Ticket enviado a ${userEmail} y al equipo de Reporting!`, 'success');
-    }
+    showToast(`🟢 Solicitud ${req.id} resuelta con ticket ${req.ticketNumber}`, 'success');
 }
 
 // ==========================================================================
@@ -1685,6 +1644,7 @@ function renderAdminTable() {
 
     const query = (document.getElementById('admin-search')?.value || '').toLowerCase();
     const catFilter = document.getElementById('admin-category-filter')?.value || 'ALL';
+    const countryFilter = document.getElementById('admin-country-filter')?.value || 'ALL';
     const analystFilter = document.getElementById('admin-analyst-filter')?.value || 'ALL';
 
     const filtered = state.requests.filter(req => {
@@ -1697,6 +1657,7 @@ function renderAdminTable() {
             (req.ticketNumber && req.ticketNumber.toLowerCase().includes(query));
 
         const matchesCat = catFilter === 'ALL' || req.category === catFilter;
+        const matchesCountry = countryFilter === 'ALL' || req.pais === countryFilter;
         
         let matchesAnalyst = true;
         if (analystFilter === 'UNASSIGNED') {
@@ -1705,7 +1666,7 @@ function renderAdminTable() {
             matchesAnalyst = req.analyst === analystFilter;
         }
 
-        return matchesQuery && matchesCat && matchesAnalyst;
+        return matchesQuery && matchesCat && matchesCountry && matchesAnalyst;
     });
 
     if (filtered.length === 0) {
