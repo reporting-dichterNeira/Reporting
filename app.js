@@ -6,6 +6,7 @@ const STORAGE_KEY = 'dn_portal_requests_v3200';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
+const PENDING_EMAIL_NOTIFICATIONS_KEY = 'dn_portal_pending_admin_emails_v1';
 
 // BASE DE DATOS INFALIBLE DE SERVIDORES ESPEJO MULTI-NUBE EN TIEMPO REAL
 const CLOUD_ENDPOINTS = [
@@ -108,6 +109,108 @@ function recordMySubmittedId(id) {
     }
 }
 
+// ===========================================================================
+// COLA LOCAL DE ENTREGA POR CORREO
+// El correo es el canal oficial de entrega. No depende de JSONBlob ni de una
+// base de datos: si EmailJS no responde, el navegador conserva el aviso y lo
+// reintenta al recuperar conexión o al volver a abrir el portal.
+// ===========================================================================
+function getPendingAdminNotifications() {
+    try {
+        const raw = localStorage.getItem(PENDING_EMAIL_NOTIFICATIONS_KEY);
+        const items = raw ? JSON.parse(raw) : [];
+        return Array.isArray(items) ? items : [];
+    } catch (e) {
+        console.error('No fue posible leer la cola local de correos:', e);
+        return [];
+    }
+}
+
+function savePendingAdminNotifications(items) {
+    try {
+        localStorage.setItem(PENDING_EMAIL_NOTIFICATIONS_KEY, JSON.stringify(items));
+    } catch (e) {
+        console.error('No fue posible guardar la cola local de correos:', e);
+    }
+}
+
+function queueAdminNotification(req, recipients = REPORTING_TEAM_EMAILS) {
+    const cleanRecipients = [...new Set((recipients || []).filter(Boolean))];
+    if (!req || !req.id || cleanRecipients.length === 0) return;
+
+    // Los adjuntos pueden ocupar mucho espacio; el correo informa su nombre,
+    // pero no se conserva su contenido dentro de localStorage.
+    const { fileDataUrl, ...requestWithoutFile } = req;
+    const queue = getPendingAdminNotifications();
+    const existing = queue.find(item => item.id === req.id);
+
+    if (existing) {
+        existing.recipients = [...new Set([...(existing.recipients || []), ...cleanRecipients])];
+        existing.attempts = (existing.attempts || 0) + 1;
+        existing.lastAttemptAt = new Date().toISOString();
+    } else {
+        queue.unshift({
+            id: req.id,
+            request: requestWithoutFile,
+            recipients: cleanRecipients,
+            attempts: 1,
+            createdAt: new Date().toISOString(),
+            lastAttemptAt: new Date().toISOString()
+        });
+    }
+
+    savePendingAdminNotifications(queue.slice(0, 25));
+}
+
+let retryingPendingAdminNotifications = false;
+
+async function retryPendingAdminNotifications(silent = true) {
+    if (retryingPendingAdminNotifications || !navigator.onLine) return;
+
+    const queue = getPendingAdminNotifications();
+    if (queue.length === 0) return;
+
+    retryingPendingAdminNotifications = true;
+    const remaining = [];
+    let delivered = 0;
+
+    try {
+        for (const item of queue) {
+            try {
+                const result = await sendTicketNotification(item.request, {
+                    adminRecipients: item.recipients,
+                    includeRequester: false,
+                    showPreview: false
+                });
+
+                delivered += result.adminDelivered;
+                if (result.failedAdminRecipients.length > 0) {
+                    remaining.push({
+                        ...item,
+                        recipients: result.failedAdminRecipients,
+                        attempts: (item.attempts || 0) + 1,
+                        lastAttemptAt: new Date().toISOString()
+                    });
+                }
+            } catch (error) {
+                console.warn(`No se pudo reintentar el correo del ticket ${item.id}:`, error);
+                remaining.push({
+                    ...item,
+                    attempts: (item.attempts || 0) + 1,
+                    lastAttemptAt: new Date().toISOString()
+                });
+            }
+        }
+    } finally {
+        savePendingAdminNotifications(remaining.slice(0, 25));
+        retryingPendingAdminNotifications = false;
+    }
+
+    if (!silent && delivered > 0) {
+        showToast(`Se entregaron ${delivered} notificación(es) pendientes a Reporting.`, 'success');
+    }
+}
+
 // ==========================================================================
 // 1. INICIALIZACIÓN CON ANIMACIÓN SPLASH DE BIENVENIDA
 // ==========================================================================
@@ -145,6 +248,10 @@ document.addEventListener('DOMContentLoaded', () => {
     renderNovedades();
     renderVacacionesAdminTable();
     checkTodayNovelty();
+
+    // Reintenta entregas pendientes sin depender de la sincronización antigua.
+    setTimeout(() => retryPendingAdminNotifications(), 1200);
+    window.addEventListener('online', () => retryPendingAdminNotifications(false));
 
     fetchCloudData();
     setInterval(fetchCloudData, 5000);
@@ -1358,12 +1465,8 @@ async function handleEncoladaSubmit(e) {
         const formElem = document.getElementById('form-encoladas');
         if (formElem) formElem.reset();
 
-        // 3. Notificación al usuario y correo EmailJS
-        showToast(`✅ Solicitud ${newReq.id} ingresada exitosamente`, 'success');
-        sendSubmissionConfirmationEmail(newReq);
-
-        // 4. Sincronizar en segundo plano a servidores espejo
-        syncCloudData();
+        // El correo a Reporting es la entrega oficial del ticket.
+        await deliverTicketByEmail(newReq);
 
     } catch (err) {
         console.error("Error al registrar solicitud de Encoladas:", err);
@@ -1424,12 +1527,8 @@ async function handleReportingSubmit(e) {
         const formElem = document.getElementById('form-reporting');
         if (formElem) formElem.reset();
 
-        // 3. Notificación al usuario
-        showToast(`✅ Solicitud ${newReq.id} enviada exitosamente`, 'success');
-        sendSubmissionConfirmationEmail(newReq);
-
-        // 4. Sincronizar en segundo plano a servidores espejo
-        syncCloudData();
+        // El correo a Reporting es la entrega oficial del ticket.
+        await deliverTicketByEmail(newReq);
 
     } catch (err) {
         console.error("Error al registrar solicitud de Reporting:", err);
@@ -1440,6 +1539,103 @@ async function handleReportingSubmit(e) {
 // ==========================================================================
 // 9. ENVÍO REAL DE CORREOS Y NOTIFICACIONES
 // ==========================================================================
+async function deliverTicketByEmail(req) {
+    try {
+        const result = await sendTicketNotification(req);
+
+        if (result.adminDelivered === 0) {
+            queueAdminNotification(req, result.failedAdminRecipients);
+            showToast(`La solicitud ${req.id} quedó guardada en este equipo y se reintentará al recuperar conexión.`, 'warning');
+            return;
+        }
+
+        if (result.failedAdminRecipients.length > 0) {
+            queueAdminNotification(req, result.failedAdminRecipients);
+            showToast(`Solicitud ${req.id} entregada parcialmente; se reintentará para el resto del equipo.`, 'warning');
+            return;
+        }
+
+        showToast(`Solicitud ${req.id} entregada al equipo de Reporting.`, 'success');
+    } catch (error) {
+        console.error(`No se pudo entregar por correo la solicitud ${req.id}:`, error);
+        queueAdminNotification(req);
+        showToast(`La solicitud ${req.id} quedó guardada en este equipo y se reintentará al recuperar conexión.`, 'warning');
+    }
+}
+
+async function sendTicketNotification(req, options = {}) {
+    const {
+        adminRecipients = REPORTING_TEAM_EMAILS,
+        includeRequester = true,
+        showPreview = true
+    } = options;
+    const userEmail = req.email || '';
+    const reportingRecipients = [...new Set((adminRecipients || []).filter(Boolean))];
+    const requesterRecipients = includeRequester && userEmail && !reportingRecipients.includes(userEmail)
+        ? [userEmail]
+        : [];
+    const allRecipients = [...requesterRecipients, ...reportingRecipients];
+
+    if (reportingRecipients.length === 0) {
+        throw new Error('No hay correos de Reporting configurados.');
+    }
+    if (typeof emailjs === 'undefined') {
+        throw new Error('El servicio de correo no se cargó.');
+    }
+
+    const categoryNames = {
+        ENCOLADA: 'Encolada PDV',
+        BI_NEW: 'Power BI nuevo',
+        BI_EXISTING: 'Power BI existente',
+        BI_SPORADIC: 'Solicitud esporádica'
+    };
+    const category = categoryNames[req.category] || req.category || 'Solicitud de Reporting';
+    const subject = `[Nuevo ticket ${req.id}] ${category}: ${req.estudio || 'Sin estudio'} (${req.pais || 'Sin país'})`;
+    const htmlBody = `
+        <h2>Nuevo ticket de Reporting</h2>
+        <p><strong>Folio:</strong> ${escapeHtml(req.id)}</p>
+        <p><strong>Solicitante:</strong> ${escapeHtml(req.solicitante || userEmail || 'No informado')}<br>
+        <strong>Correo:</strong> ${escapeHtml(userEmail || 'No informado')}<br>
+        <strong>Tipo:</strong> ${escapeHtml(category)}<br>
+        <strong>Estudio:</strong> ${escapeHtml(req.estudio || 'No informado')}<br>
+        <strong>País:</strong> ${escapeHtml(req.pais || 'No informado')}</p>
+        ${req.pdvCode ? `<p><strong>PDVs:</strong> ${escapeHtml(req.pdvCode)}</p>` : ''}
+        <p><strong>Detalle:</strong><br>${escapeHtml(req.detalle || 'Sin detalle')}</p>
+        ${req.fileName ? `<p><strong>Archivo reportado:</strong> ${escapeHtml(req.fileName)}</p>` : ''}
+        <p><small>Creado: ${escapeHtml(req.createdAt || new Date().toISOString())}</small></p>
+    `;
+
+    if (showPreview) {
+        openEmailPreviewModal(allRecipients.join(', '), subject, htmlBody);
+    }
+
+    const sendToRecipient = (email) => emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        { to_email: email, subject, message: htmlBody, name: 'Reporting Dichter & Neira' }
+    );
+
+    const adminResults = await Promise.allSettled(reportingRecipients.map(sendToRecipient));
+    const requesterResults = await Promise.allSettled(requesterRecipients.map(sendToRecipient));
+    const failedAdminRecipients = reportingRecipients.filter((_, index) => adminResults[index].status !== 'fulfilled');
+
+    adminResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+            console.error(`Error enviando EmailJS a ${reportingRecipients[index]}:`, result.reason);
+        }
+    });
+    requesterResults.forEach((result, index) => {
+        if (result.status === 'rejected') {
+            console.error(`Error enviando confirmación a ${requesterRecipients[index]}:`, result.reason);
+        }
+    });
+
+    return {
+        adminDelivered: reportingRecipients.length - failedAdminRecipients.length,
+        failedAdminRecipients
+    };
+}
+
 function sendSubmissionConfirmationEmail(req) {
     const userEmail = req.email || 'usuario@dichter-neira.com';
     const isEncolada = req.category === 'ENCOLADA';
