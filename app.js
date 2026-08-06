@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v3100';
+const STORAGE_KEY = 'dn_portal_requests_v3200';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -736,6 +736,57 @@ function closeReportingAuthModal() {
     document.getElementById('reporting-auth-modal').classList.remove('active');
 }
 
+function openIngestModal() {
+    const modal = document.getElementById('ingest-modal');
+    if (modal) modal.classList.add('active');
+}
+
+function closeIngestModal() {
+    const modal = document.getElementById('ingest-modal');
+    if (modal) modal.classList.remove('active');
+}
+
+function handleIngestSubmit(e) {
+    e.preventDefault();
+    try {
+        const id = getInputValue('ing-id') || generateUniqueReqId();
+        const email = getInputValue('ing-email');
+        const cat = getInputValue('ing-cat');
+        const estudio = getInputValue('ing-estudio');
+        const pais = getInputValue('ing-pais');
+        const statusVal = getInputValue('ing-status') || 'PENDING';
+        const detalle = getInputValue('ing-detalle');
+
+        const newReq = {
+            id: id,
+            category: cat,
+            email: email,
+            solicitante: email,
+            estudio: estudio,
+            pais: pais,
+            analyst: null,
+            detalle: detalle,
+            fileName: null,
+            fileDataUrl: null,
+            status: statusVal,
+            ticketNumber: null,
+            resolutionNote: null,
+            createdAt: new Date().toISOString(),
+            resolvedAt: statusVal === 'RESOLVED' ? new Date().toISOString() : null
+        };
+
+        state.requests = mergeRequests(state.requests, [newReq]);
+        saveToStorage();
+        renderAll();
+        syncCloudData();
+        closeIngestModal();
+        showToast(`✅ Solicitud ${id} ingestada y sincronizada globalmente.`, 'success');
+    } catch (err) {
+        console.error("Error al ingestar solicitud:", err);
+        showToast("Error al ingestar la solicitud. Revisa los datos.", "error");
+    }
+}
+
 function handleReportingAuth(e) {
     e.preventDefault();
     const u = document.getElementById('auth-username').value.trim().toLowerCase();
@@ -850,6 +901,7 @@ function loadFromStorage() {
     try {
         const legacyKeys = [
             STORAGE_KEY,
+            'dn_portal_requests_v3100',
             'dn_portal_requests_v3000',
             'dn_portal_requests_v2900',
             'dn_portal_requests_v2800',
