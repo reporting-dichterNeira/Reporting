@@ -2,15 +2,15 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v3000';
+const STORAGE_KEY = 'dn_portal_requests_v3100';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 
 // BASE DE DATOS INFALIBLE DE SERVIDORES ESPEJO MULTI-NUBE EN TIEMPO REAL
 const CLOUD_ENDPOINTS = [
-    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccdd-7867-7929-90e3-070e56bd1f44' },
-    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fccdd-9337-70a5-b73c-843561126852' }
+    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fd72b-0a63-7700-af5f-90b719a619b1' },
+    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fd72b-0bc7-7873-bdd1-beb0856746d4' }
 ];
 const SYNC_API_URL = CLOUD_ENDPOINTS[0].url;
 
@@ -302,6 +302,26 @@ function mergeRequests(localArr, cloudArr) {
 }
 
 async function syncCloudData() {
+    // 1. Pre-lectura silenciosa para asegurar no sobrescribir solicitudes de otros dispositivos
+    try {
+        for (const endpoint of CLOUD_ENDPOINTS) {
+            try {
+                const resp = await fetch(endpoint.url + '?t=' + Date.now(), { cache: 'no-store' });
+                if (resp.ok) {
+                    const jsonObj = await resp.json();
+                    if (jsonObj && Array.isArray(jsonObj.requests)) {
+                        state.requests = mergeRequests(state.requests, jsonObj.requests);
+                    }
+                    if (jsonObj && Array.isArray(jsonObj.analystStatus)) {
+                        state.analystStatus = mergeAnalystStatus(state.analystStatus, jsonObj.analystStatus);
+                    }
+                }
+            } catch (e) {}
+        }
+    } catch (err) {
+        console.warn("Aviso durante pre-lectura nube:", err);
+    }
+
     saveToStorage();
     saveNovedadesToStorage();
 
@@ -311,23 +331,32 @@ async function syncCloudData() {
         lastUpdated: new Date().toISOString()
     };
 
-    const restfulBody = JSON.stringify({
-        name: 'DichterNeiraSync',
-        data: payload
-    });
     const rawBody = JSON.stringify(payload);
 
-    const writePromises = CLOUD_ENDPOINTS.map(endpoint => {
-        const body = endpoint.type === 'RESTFUL' ? restfulBody : rawBody;
-        return fetch(endpoint.url, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: body
-        }).catch(err => console.warn(`Error escribiendo en (${endpoint.url}):`, err));
+    const writePromises = CLOUD_ENDPOINTS.map(async endpoint => {
+        try {
+            const res = await fetch(endpoint.url, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: rawBody
+            });
+
+            // Si el servidor espejo expira (404), se recrea automáticamente de inmediato
+            if (!res.ok && res.status === 404) {
+                console.warn(`Restaurando servidor espejo expirado (${endpoint.url})...`);
+                await fetch('https://jsonblob.com/api/jsonBlob', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: rawBody
+                });
+            }
+        } catch (err) {
+            console.warn(`Aviso escribiendo en (${endpoint.url}):`, err);
+        }
     });
 
     await Promise.allSettled(writePromises);
-    console.log("✅ Sincronización cuádruple multi-nube completada.");
+    console.log("✅ Sincronización multi-nube infalible completada.");
 }
 
 // ==========================================================================
@@ -819,8 +848,31 @@ function selectReportingCategory(type) {
 // ==========================================================================
 function loadFromStorage() {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (raw) state.requests = JSON.parse(raw);
+        const legacyKeys = [
+            STORAGE_KEY,
+            'dn_portal_requests_v3000',
+            'dn_portal_requests_v2900',
+            'dn_portal_requests_v2800',
+            'dn_portal_requests_v2700',
+            'dn_portal_requests_v2600',
+            'dn_portal_requests_v2500',
+            'dn_portal_requests'
+        ];
+
+        let accumulated = [];
+        legacyKeys.forEach(k => {
+            try {
+                const raw = localStorage.getItem(k);
+                if (raw) {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed)) {
+                        accumulated = mergeRequests(accumulated, parsed);
+                    }
+                }
+            } catch (err) {}
+        });
+
+        state.requests = accumulated;
     } catch (e) {
         console.error("Error localStorage", e);
         state.requests = [];
