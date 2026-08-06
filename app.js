@@ -2,7 +2,7 @@
    PORTAL DICHTER & NEIRA - DESCARGA DE EXCEL COMPLETO CON TODAS SUS FILAS (APP.JS)
    ========================================================================== */
 
-const STORAGE_KEY = 'dn_portal_requests_v2800';
+const STORAGE_KEY = 'dn_portal_requests_v2900';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
@@ -1800,8 +1800,8 @@ function renderAll() {
 // ==========================================================================
 // 11. TIEMPO PROMEDIO Y ANALYTICS
 // ==========================================================================
-function calcAvgResponseTimeForAnalyst(analystName) {
-    const resolvedReqs = state.requests.filter(r => r.analyst === analystName && r.status === 'RESOLVED' && r.createdAt && r.resolvedAt);
+function calcAvgResponseTimeForAnalyst(analystName, requestList = state.requests) {
+    const resolvedReqs = requestList.filter(r => r.analyst === analystName && r.status === 'RESOLVED' && r.createdAt && r.resolvedAt);
 
     if (resolvedReqs.length === 0) return { avgHours: 0, count: 0 };
 
@@ -1818,12 +1818,23 @@ function calcAvgResponseTimeForAnalyst(analystName) {
 }
 
 function renderAnalyticsCharts() {
-    const total = state.requests.length;
-    const resolved = state.requests.filter(r => r.status === 'RESOLVED').length;
+    const selectedMonth = document.getElementById('analytics-month-filter')?.value || 'ALL';
+    const granularity = document.getElementById('analytics-granularity-filter')?.value || 'WEEKLY';
+
+    // 1. Filtrar las solicitudes según el mes seleccionado
+    const filteredRequests = state.requests.filter(r => {
+        if (!r.createdAt) return false;
+        if (selectedMonth === 'ALL') return true;
+        return r.createdAt.startsWith(selectedMonth);
+    });
+
+    // 2. Cálculo de KPIs dinámicos
+    const total = filteredRequests.length;
+    const resolved = filteredRequests.filter(r => r.status === 'RESOLVED').length;
     const resolutionRate = total > 0 ? Math.round((resolved / total) * 100) : 0;
 
-    const mayumiMetrics = calcAvgResponseTimeForAnalyst('Mayumi Sanchez');
-    const julianaMetrics = calcAvgResponseTimeForAnalyst('Juliana Chimbi');
+    const mayumiMetrics = calcAvgResponseTimeForAnalyst('Mayumi Sanchez', filteredRequests);
+    const julianaMetrics = calcAvgResponseTimeForAnalyst('Juliana Chimbi', filteredRequests);
 
     document.getElementById('kpi-mayumi-time').textContent = mayumiMetrics.count > 0 ? `~${mayumiMetrics.avgHours} hrs` : '--';
     document.getElementById('kpi-mayumi-solved').textContent = `${mayumiMetrics.count} solicitud${mayumiMetrics.count !== 1 ? 'es' : ''} resuelta${mayumiMetrics.count !== 1 ? 's' : ''}`;
@@ -1831,7 +1842,7 @@ function renderAnalyticsCharts() {
     document.getElementById('kpi-juliana-time').textContent = julianaMetrics.count > 0 ? `~${julianaMetrics.avgHours} hrs` : '--';
     document.getElementById('kpi-juliana-solved').textContent = `${julianaMetrics.count} solicitud${julianaMetrics.count !== 1 ? 'es' : ''} resuelta${julianaMetrics.count !== 1 ? 's' : ''}`;
 
-    const allResolved = state.requests.filter(r => r.status === 'RESOLVED' && r.createdAt && r.resolvedAt);
+    const allResolved = filteredRequests.filter(r => r.status === 'RESOLVED' && r.createdAt && r.resolvedAt);
     let totalGeneralHours = 0;
     allResolved.forEach(r => {
         totalGeneralHours += (new Date(r.resolvedAt).getTime() - new Date(r.createdAt).getTime()) / (1000 * 3600);
@@ -1842,13 +1853,98 @@ function renderAnalyticsCharts() {
     document.getElementById('kpi-resolution-rate').textContent = `${resolutionRate}%`;
     document.getElementById('kpi-resolved-ratio').textContent = `${resolved} resueltas de ${total}`;
 
+    // 3. Destruir gráficos anteriores para re-renderizado
     Object.keys(state.charts).forEach(key => {
         if (state.charts[key]) state.charts[key].destroy();
     });
 
-    const countMayumi = state.requests.filter(r => r.analyst === 'Mayumi Sanchez').length;
-    const countJuliana = state.requests.filter(r => r.analyst === 'Juliana Chimbi').length;
-    const countUnassigned = state.requests.filter(r => !r.analyst).length;
+    // 4. GRÁFICA DE TENDENCIA TEMPORAL (chart-trend)
+    const trendLabelElem = document.getElementById('trend-period-label');
+    let trendLabels = [];
+    let trendDataIncoming = [];
+    let trendDataResolved = [];
+
+    if (granularity === 'WEEKLY' && selectedMonth !== 'ALL') {
+        if (trendLabelElem) trendLabelElem.textContent = `Semanas del mes ${selectedMonth}`;
+        trendLabels = ['Semana 1 (Días 1-7)', 'Semana 2 (Días 8-14)', 'Semana 3 (Días 15-21)', 'Semana 4 (Días 22-31)'];
+        trendDataIncoming = [0, 0, 0, 0];
+        trendDataResolved = [0, 0, 0, 0];
+
+        filteredRequests.forEach(r => {
+            const day = new Date(r.createdAt).getDate();
+            let weekIdx = 0;
+            if (day > 21) weekIdx = 3;
+            else if (day > 14) weekIdx = 2;
+            else if (day > 7) weekIdx = 1;
+
+            trendDataIncoming[weekIdx]++;
+            if (r.status === 'RESOLVED') trendDataResolved[weekIdx]++;
+        });
+    } else {
+        if (trendLabelElem) trendLabelElem.textContent = selectedMonth === 'ALL' ? 'Evolución Mensual del Año' : `Evolución del Mes ${selectedMonth}`;
+        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        trendLabels = monthNames;
+        trendDataIncoming = new Array(12).fill(0);
+        trendDataResolved = new Array(12).fill(0);
+
+        state.requests.forEach(r => {
+            if (!r.createdAt) return;
+            const monthIdx = new Date(r.createdAt).getMonth();
+            if (monthIdx >= 0 && monthIdx < 12) {
+                trendDataIncoming[monthIdx]++;
+                if (r.status === 'RESOLVED') trendDataResolved[monthIdx]++;
+            }
+        });
+    }
+
+    const ctxTrend = document.getElementById('chart-trend')?.getContext('2d');
+    if (ctxTrend) {
+        state.charts.trend = new Chart(ctxTrend, {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [
+                    {
+                        label: 'Solicitudes Ingresadas',
+                        data: trendDataIncoming,
+                        borderColor: '#0D5CAB',
+                        backgroundColor: 'rgba(13, 92, 171, 0.12)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#0D5CAB'
+                    },
+                    {
+                        label: 'Solicitudes Resueltas',
+                        data: trendDataResolved,
+                        borderColor: '#10B981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.35,
+                        pointRadius: 4,
+                        pointBackgroundColor: '#10B981'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'top' }
+                },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } }
+                }
+            }
+        });
+    }
+
+    // 5. GRÁFICAS ADICIONALES (Analistas, Estudios, Países, Categorías)
+    const countMayumi = filteredRequests.filter(r => r.analyst === 'Mayumi Sanchez').length;
+    const countJuliana = filteredRequests.filter(r => r.analyst === 'Juliana Chimbi').length;
+    const countUnassigned = filteredRequests.filter(r => !r.analyst).length;
 
     const ctxAnalyst = document.getElementById('chart-analyst')?.getContext('2d');
     if (ctxAnalyst) {
@@ -1872,7 +1968,7 @@ function renderAnalyticsCharts() {
     }
 
     const countByEstudio = {};
-    state.requests.forEach(r => {
+    filteredRequests.forEach(r => {
         if (r.estudio) countByEstudio[r.estudio] = (countByEstudio[r.estudio] || 0) + 1;
     });
 
@@ -1899,7 +1995,7 @@ function renderAnalyticsCharts() {
     }
 
     const countByPais = {};
-    state.requests.forEach(r => {
+    filteredRequests.forEach(r => {
         if (r.pais) countByPais[r.pais] = (countByPais[r.pais] || 0) + 1;
     });
 
@@ -1924,19 +2020,20 @@ function renderAnalyticsCharts() {
         });
     }
 
-    const countEncolada = state.requests.filter(r => r.category === 'ENCOLADA').length;
-    const countBiExisting = state.requests.filter(r => r.category === 'BI_EXISTING').length;
-    const countBiNew = state.requests.filter(r => r.category === 'BI_NEW').length;
+    const countEncolada = filteredRequests.filter(r => r.category === 'ENCOLADA').length;
+    const countBiExisting = filteredRequests.filter(r => r.category === 'BI_EXISTING').length;
+    const countBiNew = filteredRequests.filter(r => r.category === 'BI_NEW').length;
+    const countBiSporadic = filteredRequests.filter(r => r.category === 'BI_SPORADIC').length;
 
     const ctxCategory = document.getElementById('chart-category')?.getContext('2d');
     if (ctxCategory) {
         state.charts.category = new Chart(ctxCategory, {
             type: 'pie',
             data: {
-                labels: ['Encoladas PDV', 'Power BI Existente', 'Power BI Nuevo'],
+                labels: ['Encoladas PDV', 'Power BI Existente', 'Power BI Nuevo', 'Esporádica'],
                 datasets: [{
-                    data: [countEncolada, countBiExisting, countBiNew],
-                    backgroundColor: ['#0D5CAB', '#6D37A9', '#F83875'],
+                    data: [countEncolada, countBiExisting, countBiNew, countBiSporadic],
+                    backgroundColor: ['#0D5CAB', '#6D37A9', '#F83875', '#F59E0B'],
                     borderWidth: 2,
                     borderColor: '#FFFFFF'
                 }]
