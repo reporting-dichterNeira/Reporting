@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=2800.0">
+    <link rel="stylesheet" href="styles.css?v=2900.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -835,13 +835,45 @@
              =================================================================== -->
         <section id="tab-analytics" class="tab-content">
             <div class="analytics-header clean-card">
-                <div>
-                    <h2><i data-lucide="bar-chart-2"></i> Dashboard de Analytics & Métricas por Analista</h2>
-                    <p>Visualización interactiva de solicitudes, rendimiento individual de Mayumi Sanchez y Juliana Chimbi y tiempos de respuesta.</p>
+                <div class="analytics-header-top">
+                    <div>
+                        <h2><i data-lucide="bar-chart-2"></i> Dashboard de Analytics & Métricas por Analista</h2>
+                        <p>Visualización interactiva de solicitudes, rendimiento individual de Mayumi Sanchez y Juliana Chimbi y tiempos de respuesta.</p>
+                    </div>
+                    <button class="btn-secondary" onclick="renderAnalyticsCharts()">
+                        <i data-lucide="refresh-cw"></i> Actualizar Métricas
+                    </button>
                 </div>
-                <button class="btn-secondary" onclick="renderAnalyticsCharts()">
-                    <i data-lucide="refresh-cw"></i> Actualizar Métricas
-                </button>
+
+                <!-- CONTROLES DE FILTRO POR MES Y SEMANA -->
+                <div class="analytics-filter-bar">
+                    <div class="filter-item">
+                        <label for="analytics-month-filter"><i data-lucide="calendar"></i> Filtrar por Mes:</label>
+                        <select id="analytics-month-filter" class="select-stylish" onchange="renderAnalyticsCharts()">
+                            <option value="ALL">🗓️ Todos los Meses (Acumulados)</option>
+                            <option value="2026-01">Enero 2026</option>
+                            <option value="2026-02">Febrero 2026</option>
+                            <option value="2026-03">Marzo 2026</option>
+                            <option value="2026-04">Abril 2026</option>
+                            <option value="2026-05">Mayo 2026</option>
+                            <option value="2026-06">Junio 2026</option>
+                            <option value="2026-07">Julio 2026</option>
+                            <option value="2026-08" selected>Agosto 2026</option>
+                            <option value="2026-09">Septiembre 2026</option>
+                            <option value="2026-10">Octubre 2026</option>
+                            <option value="2026-11">Noviembre 2026</option>
+                            <option value="2026-12">Diciembre 2026</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-item">
+                        <label for="analytics-granularity-filter"><i data-lucide="clock"></i> Agrupar Tendencia por:</label>
+                        <select id="analytics-granularity-filter" class="select-stylish" onchange="renderAnalyticsCharts()">
+                            <option value="WEEKLY" selected>📅 Por Semana del Mes</option>
+                            <option value="MONTHLY">📊 Por Mes (Evolución Anual)</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <!-- KPIs DE TIEMPO PROMEDIO POR ANALISTA -->
@@ -870,6 +902,17 @@
 
             <!-- Cuadrícula de Gráficas Chart.js -->
             <div class="charts-grid">
+                <!-- NUEVA GRÁFICA FULL-WIDTH: EVOLUCIÓN Y TENDENCIA TEMPORAL -->
+                <div class="clean-card chart-card full-width">
+                    <div class="chart-card-header space-between">
+                        <h4><i data-lucide="trending-up"></i> Evolución de Solicitudes (Ingresadas vs Resueltas)</h4>
+                        <span id="trend-period-label" class="badge-tag">Periodo Filtrado</span>
+                    </div>
+                    <div class="canvas-wrapper" style="height: 260px;">
+                        <canvas id="chart-trend"></canvas>
+                    </div>
+                </div>
+
                 <div class="clean-card chart-card">
                     <div class="chart-card-header">
                         <h4><i data-lucide="users"></i> Solicitudes Asignadas por Analista</h4>
@@ -1054,6 +1097,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=2800.0"></script>
+    <script src="app.js?v=2900.0"></script>
 </body>
 </html>
