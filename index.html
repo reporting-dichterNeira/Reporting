@@ -16,7 +16,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <!-- EmailJS SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
-    <link rel="stylesheet" href="styles.css?v=3100.0">
+    <link rel="stylesheet" href="styles.css?v=3200.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -679,6 +679,9 @@
                         <button class="btn-secondary" onclick="fetchCloudData(true)" title="Forzar sincronización desde la nube">
                             <i data-lucide="refresh-cw"></i> Sincronizar Nube
                         </button>
+                        <button class="btn-primary" onclick="openIngestModal()" style="background: linear-gradient(135deg, #0D5CAB, #6D37A9); color: white; border: none; padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 0.85rem; display: flex; align-items: center; gap: 6px; cursor: pointer;">
+                            <i data-lucide="plus-circle"></i> Ingestar Solicitud
+                        </button>
                         <button class="btn-secondary" onclick="exportToCSV()" title="Descargar reporte completo">
                             <i data-lucide="download"></i> CSV
                         </button>
@@ -1094,9 +1097,97 @@
         </div>
     </div>
 
+    <!-- MODAL INGESTAR SOLICITUD MANUAL (EQUIPO REPORTING) -->
+    <div id="ingest-modal" class="modal-backdrop">
+        <div class="modal-box" style="max-width: 520px;">
+            <div class="modal-header">
+                <h3><i data-lucide="plus-circle"></i> Ingestar Solicitud Manual</h3>
+                <button class="close-btn" onclick="closeIngestModal()">&times;</button>
+            </div>
+
+            <form onsubmit="handleIngestSubmit(event)">
+                <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:16px;">
+                    Ingresa los datos del requerimiento recibido para agregarlo y sincronizarlo inmediatamente a la nube global.
+                </p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ing-id">Folio / Ticket ID</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="hash"></i>
+                            <input type="text" id="ing-id" placeholder="Ej. REQ-8810-952" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ing-email">Correo Solicitante</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="mail"></i>
+                            <input type="email" id="ing-email" placeholder="usuario@dichter-neira.com" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ing-cat">Categoría</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="tag"></i>
+                            <select id="ing-cat" required>
+                                <option value="BI_EXISTING">Power BI Existente</option>
+                                <option value="BI_NEW">Power BI Nuevo</option>
+                                <option value="ENCOLADA">Encolada PDV</option>
+                                <option value="BI_SPORADIC">Solicitud Esporádica</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ing-estudio">Estudio</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="database"></i>
+                            <input type="text" id="ing-estudio" placeholder="Ej. KO moderno" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ing-pais">País</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="globe"></i>
+                            <input type="text" id="ing-pais" placeholder="Ej. Perú" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ing-status">Estado Inicial</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="activity"></i>
+                            <select id="ing-status">
+                                <option value="PENDING">🟡 Pendiente</option>
+                                <option value="IN_PROGRESS">🔵 En Proceso</option>
+                                <option value="RESOLVED">🟢 Resuelto</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="ing-detalle">Detalle del Requerimiento</label>
+                    <textarea id="ing-detalle" rows="2" placeholder="Detalle o descripción de la solicitud..." required></textarea>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeIngestModal()">Cancelar</button>
+                    <button type="submit" class="btn-dn-primary">
+                        <i data-lucide="save"></i> Ingestar y Sincronizar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3100.0"></script>
+    <script src="app.js?v=3200.0"></script>
 </body>
 </html>
