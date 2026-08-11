@@ -298,7 +298,7 @@ async function fetchCloudData(userTriggered = false) {
         if (error) throw error;
 
         const cloudRequests = (data || [])
-            .filter(row => row && row.id && row.payload)
+            .filter(row => row && row.id && row.payload && !String(row.id).startsWith('TEST-SYNC-'))
             .map(row => ({
                 ...row.payload,
                 id: row.id,
@@ -469,7 +469,7 @@ async function syncCloudData() {
         if (readError) throw readError;
 
         const remoteRequests = (remoteRows || [])
-            .filter(row => row && row.id && row.payload)
+            .filter(row => row && row.id && row.payload && !String(row.id).startsWith('TEST-SYNC-'))
             .map(row => ({
                 ...row.payload,
                 id: row.id,
