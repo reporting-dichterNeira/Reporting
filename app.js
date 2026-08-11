@@ -8,12 +8,25 @@ const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 const PENDING_EMAIL_NOTIFICATIONS_KEY = 'dn_portal_pending_admin_emails_v1';
 
-// BASE DE DATOS INFALIBLE DE SERVIDORES ESPEJO MULTI-NUBE EN TIEMPO REAL
-const CLOUD_ENDPOINTS = [
-    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fd72b-0a63-7700-af5f-90b719a619b1' },
-    { type: 'JSONBLOB', url: 'https://jsonblob.com/api/jsonBlob/019fd72b-0bc7-7873-bdd1-beb0856746d4' }
-];
-const SYNC_API_URL = CLOUD_ENDPOINTS[0].url;
+// ALMACENAMIENTO CENTRAL: SUPABASE
+// La publishable key es pública por diseño; las reglas RLS de Supabase
+// controlan lo que puede hacerse con los datos.
+const SUPABASE_URL = 'https://fqvowwczsymclcsfhnvi.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_en7K1K8jJtI2hIQ8KVTuHQ__aT9-QpU';
+let supabaseClient = null;
+
+function getSupabaseClient() {
+    if (supabaseClient) return supabaseClient;
+    if (typeof supabase === 'undefined') {
+        console.error('La librería de Supabase no se pudo cargar.');
+        return null;
+    }
+
+    supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false }
+    });
+    return supabaseClient;
+}
 
 // FUNCIONES DE SEGURIDAD PARA LECTURA DE FORMULARIOS
 function getInputValue(id, fallback = '') {
@@ -273,7 +286,43 @@ document.addEventListener('DOMContentLoaded', () => {
 // 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (4 SERVIDORES MULTI-NUBE)
 // ==========================================================================
 async function fetchCloudData(userTriggered = false) {
-    const syncBadge = document.getElementById('cloud-sync-status');
+    const client = getSupabaseClient();
+    if (!client) return false;
+
+    try {
+        const { data, error } = await client
+            .from('portal_requests')
+            .select('id, payload, created_at, updated_at')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const cloudRequests = (data || [])
+            .filter(row => row && row.id && row.payload)
+            .map(row => ({
+                ...row.payload,
+                id: row.id,
+                createdAt: row.payload.createdAt || row.created_at,
+                updatedAt: row.updated_at
+            }));
+
+        state.requests = mergeRequests(state.requests, cloudRequests);
+        saveToStorage();
+        renderAll();
+
+        if (userTriggered) {
+            showToast(`Nube sincronizada (${state.requests.length} solicitudes globales)`, 'success');
+        }
+        return true;
+    } catch (error) {
+        console.error('Error leyendo tickets desde Supabase:', error);
+        if (userTriggered) {
+            showToast('No fue posible sincronizar los tickets. Intenta nuevamente.', 'warning');
+        }
+        return false;
+    }
+
+    // Legacy JSONBlob sync intentionally disabled.
     let mergedCloudRequests = [];
     let mergedAnalystStatus = [];
     let fetchSuccess = false;
@@ -409,6 +458,50 @@ function mergeRequests(localArr, cloudArr) {
 }
 
 async function syncCloudData() {
+    const client = getSupabaseClient();
+    if (!client) return false;
+
+    try {
+        // Lee antes de escribir para preservar cambios hechos desde otro PC.
+        const { data: remoteRows, error: readError } = await client
+            .from('portal_requests')
+            .select('id, payload, created_at, updated_at');
+        if (readError) throw readError;
+
+        const remoteRequests = (remoteRows || [])
+            .filter(row => row && row.id && row.payload)
+            .map(row => ({
+                ...row.payload,
+                id: row.id,
+                createdAt: row.payload.createdAt || row.created_at,
+                updatedAt: row.updated_at
+            }));
+        state.requests = mergeRequests(state.requests, remoteRequests);
+
+        const now = new Date().toISOString();
+        const records = state.requests
+            .filter(request => request && request.id)
+            .map(request => ({
+                id: request.id,
+                payload: request,
+                created_at: request.createdAt || now,
+                updated_at: now
+            }));
+
+        if (records.length > 0) {
+            const { error: writeError } = await client
+                .from('portal_requests')
+                .upsert(records, { onConflict: 'id' });
+            if (writeError) throw writeError;
+        }
+
+        saveToStorage();
+        return true;
+    } catch (error) {
+        console.error('Error guardando tickets en Supabase:', error);
+        return false;
+    }
+
     // 1. Pre-lectura silenciosa para asegurar no sobrescribir solicitudes de otros dispositivos
     try {
         for (const endpoint of CLOUD_ENDPOINTS) {
@@ -1465,7 +1558,13 @@ async function handleEncoladaSubmit(e) {
         const formElem = document.getElementById('form-encoladas');
         if (formElem) formElem.reset();
 
-        // El correo a Reporting es la entrega oficial del ticket.
+        // Guarda primero en Supabase: así aparece de inmediato en la bandeja
+        // administrativa de cualquier computador.
+        if (!await syncCloudData()) {
+            showToast(`La solicitud ${newReq.id} se envió por correo, pero no pudo guardarse en la bandeja global.`, 'warning');
+        }
+
+        // El correo a Reporting es la notificación oficial del ticket.
         await deliverTicketByEmail(newReq);
 
     } catch (err) {
@@ -1527,7 +1626,13 @@ async function handleReportingSubmit(e) {
         const formElem = document.getElementById('form-reporting');
         if (formElem) formElem.reset();
 
-        // El correo a Reporting es la entrega oficial del ticket.
+        // Guarda primero en Supabase: así aparece de inmediato en la bandeja
+        // administrativa de cualquier computador.
+        if (!await syncCloudData()) {
+            showToast(`La solicitud ${newReq.id} se envió por correo, pero no pudo guardarse en la bandeja global.`, 'warning');
+        }
+
+        // El correo a Reporting es la notificación oficial del ticket.
         await deliverTicketByEmail(newReq);
 
     } catch (err) {
