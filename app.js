@@ -1286,15 +1286,33 @@ function addMockData() {
     showToast('Solicitud simulada agregada y sincronizada', 'success');
 }
 
-function deleteRequest(id) {
-    if (confirm(`¿Estás seguro de eliminar la solicitud ${id}? Esta acción no se puede deshacer.`)) {
+async function deleteRequest(id) {
+    if (!confirm(`¿Estás seguro de eliminar la solicitud ${id}? Esta acción no se puede deshacer.`)) return;
+
+    const client = getSupabaseClient();
+    if (!client) {
+        showToast('No fue posible conectar con la nube para eliminar la solicitud.', 'error');
+        return;
+    }
+
+    try {
+        // Elimina primero el registro central. Así no reaparece al sincronizar desde otro PC.
+        const { error } = await client
+            .from('portal_requests')
+            .delete()
+            .eq('id', id);
+        if (error) throw error;
+
         state.requests = state.requests.filter(r => r.id !== id);
-        syncCloudData();
+        saveToStorage();
         renderAll();
         if (state.activeTab === 'analytics') {
             renderAnalyticsCharts();
         }
         showToast(`Solicitud ${id} eliminada correctamente.`, 'info');
+    } catch (error) {
+        console.error('Error eliminando ticket en Supabase:', error);
+        showToast('No fue posible eliminar la solicitud. Intenta nuevamente.', 'error');
     }
 }
 
