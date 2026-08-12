@@ -1020,6 +1020,10 @@ function switchTab(tabId) {
     if (activeBtn) activeBtn.classList.add('active');
     if (activeTabContent) activeTabContent.classList.add('active');
 
+    if (tabId === 'encoladas') {
+        openEncoladasNotice();
+    }
+
     renderAll();
 
     if (tabId === 'inicio' || tabId === 'novedades') {
@@ -1032,6 +1036,19 @@ function switchTab(tabId) {
 
     fetchCloudData();
     lucide.createIcons();
+}
+
+function openEncoladasNotice() {
+    const modal = document.getElementById('encoladas-notice-modal');
+    if (!modal) return;
+    modal.classList.add('active');
+    lucide.createIcons();
+}
+
+function closeEncoladasNotice() {
+    const modal = document.getElementById('encoladas-notice-modal');
+    if (!modal) return;
+    modal.classList.remove('active');
 }
 
 function toggleEncFields(type) {

@@ -1025,6 +1025,19 @@
     </div>
 
     <!-- MODAL DE GESTIÓN, ESTADO 'EN PROCESO' CON FECHA DE ENTREGA Y TICKET -->
+    <div id="encoladas-notice-modal" class="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="encoladas-notice-title">
+        <div class="modal-box encoladas-notice-modal">
+            <div class="encoladas-notice-icon"><i data-lucide="clock-3"></i></div>
+            <h3 id="encoladas-notice-title">Antes de reportar una encolada</h3>
+            <p>Recuerda que un PDV se considera encolado si no aparece en AG después de <strong>48 horas</strong> de haberlo levantado en campo.</p>
+            <div class="modal-footer">
+                <button type="button" class="btn-dn-primary" onclick="closeEncoladasNotice()">
+                    <i data-lucide="check"></i> Aceptar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="response-modal" class="modal-backdrop">
         <div class="modal-box">
             <div class="modal-header">
@@ -1194,6 +1207,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3205.0"></script>
+    <script src="app.js?v=3206.0"></script>
 </body>
 </html>
