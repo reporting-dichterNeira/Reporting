@@ -306,7 +306,9 @@ async function fetchCloudData(userTriggered = false) {
                 updatedAt: row.updated_at
             }));
 
-        state.requests = mergeRequests(state.requests, cloudRequests);
+        // Supabase es la fuente definitiva. No se mezcla con la copia local,
+        // porque esa copia puede contener tickets que ya fueron eliminados.
+        state.requests = cloudRequests;
         saveToStorage();
         renderAll();
 
@@ -457,30 +459,19 @@ function mergeRequests(localArr, cloudArr) {
     return merged;
 }
 
-async function syncCloudData() {
+async function syncCloudData(requestIds = []) {
     const client = getSupabaseClient();
     if (!client) return false;
 
     try {
-        // Lee antes de escribir para preservar cambios hechos desde otro PC.
-        const { data: remoteRows, error: readError } = await client
-            .from('portal_requests')
-            .select('id, payload, created_at, updated_at');
-        if (readError) throw readError;
-
-        const remoteRequests = (remoteRows || [])
-            .filter(row => row && row.id && row.payload && !String(row.id).startsWith('TEST-SYNC-'))
-            .map(row => ({
-                ...row.payload,
-                id: row.id,
-                createdAt: row.payload.createdAt || row.created_at,
-                updatedAt: row.updated_at
-            }));
-        state.requests = mergeRequests(state.requests, remoteRequests);
+        // Solo se guardan los tickets que se acaban de crear o modificar.
+        // Así una copia antigua del navegador no puede recrear tickets borrados.
+        const idsToSave = new Set(Array.isArray(requestIds) ? requestIds.filter(Boolean) : [requestIds]);
+        if (idsToSave.size === 0) return true;
 
         const now = new Date().toISOString();
         const records = state.requests
-            .filter(request => request && request.id)
+            .filter(request => request && request.id && idsToSave.has(request.id))
             .map(request => ({
                 id: request.id,
                 payload: request,
@@ -978,7 +969,7 @@ function handleIngestSubmit(e) {
         state.requests = mergeRequests(state.requests, [newReq]);
         saveToStorage();
         renderAll();
-        syncCloudData();
+        syncCloudData([newReq.id]);
         closeIngestModal();
         showToast(`✅ Solicitud ${id} ingestada y sincronizada globalmente.`, 'success');
     } catch (err) {
@@ -1281,7 +1272,7 @@ function addMockData() {
 
     state.requests.unshift(newReq);
     recordMySubmittedId(newReq.id);
-    syncCloudData();
+    syncCloudData([newReq.id]);
     renderAll();
     showToast('Solicitud simulada agregada y sincronizada', 'success');
 }
@@ -1578,7 +1569,7 @@ async function handleEncoladaSubmit(e) {
 
         // Guarda primero en Supabase: así aparece de inmediato en la bandeja
         // administrativa de cualquier computador.
-        if (!await syncCloudData()) {
+        if (!await syncCloudData([newReq.id])) {
             showToast(`La solicitud ${newReq.id} se envió por correo, pero no pudo guardarse en la bandeja global.`, 'warning');
         }
 
@@ -1646,7 +1637,7 @@ async function handleReportingSubmit(e) {
 
         // Guarda primero en Supabase: así aparece de inmediato en la bandeja
         // administrativa de cualquier computador.
-        if (!await syncCloudData()) {
+        if (!await syncCloudData([newReq.id])) {
             showToast(`La solicitud ${newReq.id} se envió por correo, pero no pudo guardarse en la bandeja global.`, 'warning');
         }
 
@@ -2623,7 +2614,8 @@ function saveModalResponse() {
         req.deliveryDate = req.category === 'ENCOLADA' ? 'Procesamiento en curso' : deliveryDate;
         req.inProgressNote = noteVal;
         
-        syncCloudData();
+        req.updatedAt = new Date().toISOString();
+        syncCloudData([req.id]);
         renderAll();
         closeModal();
         sendInProgressEmail(req);
@@ -2640,12 +2632,14 @@ function saveModalResponse() {
         req.resolutionNote = noteVal;
         req.resolvedAt = req.resolvedAt || new Date().toISOString();
 
-        syncCloudData();
+        req.updatedAt = new Date().toISOString();
+        syncCloudData([req.id]);
         renderAll();
         closeModal();
         sendResolutionTicketEmail(req);
     } else {
-        syncCloudData();
+        req.updatedAt = new Date().toISOString();
+        syncCloudData([req.id]);
         renderAll();
         closeModal();
         showToast('Estado de la solicitud actualizado', 'info');
