@@ -1152,6 +1152,10 @@ function selectReportingCategory(type) {
 // ==========================================================================
 // 6. PERSISTENCIA DE DATOS LOCAL
 // ==========================================================================
+function isPortalTicket(request) {
+    return Boolean(request && request.id && request.id !== ANALYST_STATUS_RECORD_ID && typeof request.category === 'string');
+}
+
 function loadFromStorage() {
     try {
         const legacyKeys = [
@@ -1173,13 +1177,13 @@ function loadFromStorage() {
                 if (raw) {
                     const parsed = JSON.parse(raw);
                     if (Array.isArray(parsed)) {
-                        accumulated = mergeRequests(accumulated, parsed);
+                        accumulated = mergeRequests(accumulated, parsed.filter(isPortalTicket));
                     }
                 }
             } catch (err) {}
         });
 
-        state.requests = accumulated;
+        state.requests = accumulated.filter(isPortalTicket);
     } catch (e) {
         console.error("Error localStorage", e);
         state.requests = [];
@@ -2312,10 +2316,11 @@ function renderAdminTable() {
 }
 
 function renderMetrics() {
-    const totalPending = state.requests.filter(r => r.status === 'PENDING').length;
-    const totalEncoladas = state.requests.filter(r => r.category === 'ENCOLADA').length;
-    const totalBI = state.requests.filter(r => r.category.startsWith('BI_')).length;
-    const totalResolved = state.requests.filter(r => r.status === 'RESOLVED').length;
+    const tickets = state.requests.filter(isPortalTicket);
+    const totalPending = tickets.filter(r => r.status === 'PENDING').length;
+    const totalEncoladas = tickets.filter(r => r.category === 'ENCOLADA').length;
+    const totalBI = tickets.filter(r => r.category.startsWith('BI_')).length;
+    const totalResolved = tickets.filter(r => r.status === 'RESOLVED').length;
 
     document.getElementById('stat-pending').textContent = totalPending;
     document.getElementById('stat-encoladas').textContent = totalEncoladas;
