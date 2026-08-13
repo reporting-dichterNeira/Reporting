@@ -404,6 +404,11 @@ body.dn-light-theme {
     background: rgba(20, 168, 59, 0.04);
 }
 
+.analyst-status-card.upcoming {
+    border-left: 4px solid var(--dn-orange);
+    background: rgba(255, 149, 50, 0.06);
+}
+
 .analyst-card-top {
     display: flex;
     justify-content: space-between;
@@ -431,6 +436,8 @@ body.dn-light-theme {
 .status-badge.vacaciones { background: rgba(248, 56, 117, 0.15); color: var(--dn-pink); }
 .status-badge.dia_libre { background: rgba(255, 149, 50, 0.15); color: var(--dn-orange); }
 .status-badge.capacitacion { background: rgba(109, 55, 169, 0.15); color: var(--dn-purple); }
+.status-badge.programada { background: rgba(255, 149, 50, 0.15); color: var(--dn-orange); }
+.status-badge.finalizada { background: rgba(102, 112, 133, 0.14); color: var(--text-muted); }
 
 .analyst-note-text {
     font-size: 0.85rem;

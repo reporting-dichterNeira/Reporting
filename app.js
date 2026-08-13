@@ -7,6 +7,7 @@ const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 const PENDING_EMAIL_NOTIFICATIONS_KEY = 'dn_portal_pending_admin_emails_v1';
+const ANALYST_STATUS_RECORD_ID = 'PORTAL_META_ANALYST_STATUS_V1';
 
 // ALMACENAMIENTO CENTRAL: SUPABASE
 // La publishable key es pública por diseño; las reglas RLS de Supabase
@@ -297,8 +298,14 @@ async function fetchCloudData(userTriggered = false) {
 
         if (error) throw error;
 
+        const analystStatusRecord = (data || []).find(row => row && row.id === ANALYST_STATUS_RECORD_ID);
+        if (Array.isArray(analystStatusRecord?.payload?.analystStatus)) {
+            state.analystStatus = analystStatusRecord.payload.analystStatus;
+            saveNovedadesToStorage();
+        }
+
         const cloudRequests = (data || [])
-            .filter(row => row && row.id && row.payload && !String(row.id).startsWith('TEST-SYNC-'))
+            .filter(row => row && row.id && row.payload && row.id !== ANALYST_STATUS_RECORD_ID && !String(row.id).startsWith('TEST-SYNC-'))
             .map(row => ({
                 ...row.payload,
                 id: row.id,
@@ -311,6 +318,9 @@ async function fetchCloudData(userTriggered = false) {
         state.requests = cloudRequests;
         saveToStorage();
         renderAll();
+        renderNovedades();
+        renderVacacionesAdminTable();
+        checkTodayNovelty();
 
         if (userTriggered) {
             showToast(`Nube sincronizada (${state.requests.length} solicitudes globales)`, 'success');
@@ -841,7 +851,7 @@ function checkTodayNovelty() {
 
     if (!banner || !titleElem || !msgElem) return;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getBogotaDateKey();
     const todayHoliday = colombianHolidays2026.find(h => h.iso === todayStr);
 
     const absentAnalyst = state.analystStatus.find(a => {
@@ -1036,6 +1046,29 @@ function switchTab(tabId) {
 
     fetchCloudData();
     lucide.createIcons();
+}
+
+async function syncAnalystStatus() {
+    const client = getSupabaseClient();
+    if (!client) return false;
+
+    try {
+        const now = new Date().toISOString();
+        const { error } = await client
+            .from('portal_requests')
+            .upsert({
+                id: ANALYST_STATUS_RECORD_ID,
+                payload: { analystStatus: state.analystStatus },
+                created_at: now,
+                updated_at: now
+            }, { onConflict: 'id' });
+        if (error) throw error;
+        saveNovedadesToStorage();
+        return true;
+    } catch (error) {
+        console.error('Error guardando vacaciones en Supabase:', error);
+        return false;
+    }
 }
 
 function openEncoladasNotice() {
@@ -1341,7 +1374,7 @@ async function deleteRequest(id) {
 // ==========================================================================
 // 7. GESTIÓN PÁGINA INDEPENDIENTE DE VACACIONES & NOVEDADES
 // ==========================================================================
-function handleNovedadSubmit(e) {
+async function handleNovedadSubmit(e) {
     e.preventDefault();
 
     const analystName = document.getElementById('nov-analyst').value;
@@ -1373,35 +1406,61 @@ function handleNovedadSubmit(e) {
         state.analystStatus.push(updatedStatus);
     }
 
-    syncCloudData();
+    const savedInCloud = await syncAnalystStatus();
     document.getElementById('form-analyst-novedad').reset();
     renderNovedades();
     renderVacacionesAdminTable();
     checkTodayNovelty();
-    showToast(`Novedad publicada y sincronizada con éxito para ${analystName}`, 'success');
+    showToast(
+        savedInCloud
+            ? `Novedad publicada y sincronizada con éxito para ${analystName}`
+            : `La novedad de ${analystName} se guardó localmente, pero no pudo sincronizarse.`,
+        savedInCloud ? 'success' : 'warning'
+    );
 }
 
-function deleteNovedad(index) {
+async function deleteNovedad(index) {
     const item = state.analystStatus[index];
     if (!item) return;
 
     if (confirm(`¿Estás seguro de eliminar el registro de vacaciones/novedad de ${item.analyst}?`)) {
         state.analystStatus.splice(index, 1);
-        syncCloudData();
+        const savedInCloud = await syncAnalystStatus();
         renderNovedades();
         renderVacacionesAdminTable();
         checkTodayNovelty();
-        showToast('Novedad eliminada correctamente.', 'info');
+        showToast(
+            savedInCloud ? 'Novedad eliminada correctamente.' : 'La novedad se eliminó localmente, pero no pudo sincronizarse.',
+            savedInCloud ? 'info' : 'warning'
+        );
     }
+}
+
+function getBogotaDateKey(date = new Date()) {
+    const parts = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Bogota',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.filter(part => part.type !== 'literal').map(part => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getLeaveTiming(item, today = getBogotaDateKey()) {
+    if (!item?.dateStart || !item?.dateEnd) return 'current';
+    if (today < item.dateStart) return 'upcoming';
+    if (today > item.dateEnd) return 'completed';
+    return 'current';
 }
 
 function renderVacacionesAdminTable() {
     const tbody = document.getElementById('vacaciones-admin-table-body');
     if (!tbody) return;
 
-    const activeLeaves = state.analystStatus.filter(a => a.status !== 'DISPONIBLE');
+    const registeredLeaves = state.analystStatus.filter(a => a.status !== 'DISPONIBLE');
 
-    if (activeLeaves.length === 0) {
+    if (registeredLeaves.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="4" style="text-align:center; padding:24px; color:var(--text-muted);">
@@ -1413,8 +1472,9 @@ function renderVacacionesAdminTable() {
         return;
     }
 
-    tbody.innerHTML = activeLeaves.map((item) => {
+    tbody.innerHTML = registeredLeaves.map((item) => {
         const realIdx = state.analystStatus.findIndex(a => a === item);
+        const timing = getLeaveTiming(item);
         
         let badgeClass = 'vacaciones';
         let statusLabel = '🏖️ Vacaciones';
@@ -1424,6 +1484,14 @@ function renderVacacionesAdminTable() {
         } else if (item.status === 'CAPACITACION') {
             badgeClass = 'capacitacion';
             statusLabel = '📚 Capacitación';
+        }
+
+        if (timing === 'upcoming') {
+            badgeClass = 'programada';
+            statusLabel = `🗓️ Próximas ${item.status === 'VACACIONES' ? 'vacaciones' : 'ausencias'}`;
+        } else if (timing === 'completed') {
+            badgeClass = 'finalizada';
+            statusLabel = '✓ Finalizada';
         }
 
         return `
@@ -1451,8 +1519,9 @@ function renderNovedades() {
 
     const analystHTML = teamMembers.map(analystName => {
         const item = state.analystStatus.find(a => a.analyst === analystName && a.status !== 'DISPONIBLE');
+        const timing = getLeaveTiming(item);
 
-        if (item) {
+        if (item && timing === 'current') {
             let statusText = '🏖️ En Vacaciones';
             let badgeClass = 'vacaciones';
             if (item.status === 'DIA_LIBRE') {
@@ -1472,6 +1541,20 @@ function renderNovedades() {
                         <span class="status-badge ${badgeClass}">${statusText}</span>
                     </div>
                     <div class="analyst-note-text">${escapeHtml(item.note || 'En periodo de ausencia / vacaciones.')}</div>
+                    ${item.dates ? `<div class="analyst-dates-sub">📅 ${escapeHtml(item.dates)}</div>` : ''}
+                </div>
+            `;
+        } else if (item && timing === 'upcoming') {
+            const statusText = item.status === 'VACACIONES' ? '🗓️ Próximas Vacaciones' : '🗓️ Próxima Ausencia';
+            return `
+                <div class="analyst-status-card upcoming">
+                    <div class="analyst-card-top">
+                        <span class="analyst-name-bold">
+                            <i data-lucide="calendar-clock"></i> ${escapeHtml(item.analyst)}
+                        </span>
+                        <span class="status-badge programada">${statusText}</span>
+                    </div>
+                    <div class="analyst-note-text">${escapeHtml(item.note || 'Ausencia programada.')}</div>
                     ${item.dates ? `<div class="analyst-dates-sub">📅 ${escapeHtml(item.dates)}</div>` : ''}
                 </div>
             `;
@@ -1496,7 +1579,7 @@ function renderNovedades() {
     if (feed1) feed1.innerHTML = analystHTML;
     if (feedHome) feedHome.innerHTML = analystHTML;
 
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = getBogotaDateKey();
     const futureHolidays = colombianHolidays2026.filter(h => h.iso >= todayStr);
 
     const countText = `${futureHolidays.length} próximos festivos`;
