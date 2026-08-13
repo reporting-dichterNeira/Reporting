@@ -148,7 +148,7 @@ function savePendingAdminNotifications(items) {
     }
 }
 
-function queueAdminNotification(req, recipients = REPORTING_TEAM_EMAILS) {
+function queueAdminNotification(req, recipients = REPORTING_TEAM_EMAILS, notificationType = 'ticket', status = '') {
     const cleanRecipients = [...new Set((recipients || []).filter(Boolean))];
     if (!req || !req.id || cleanRecipients.length === 0) return;
 
@@ -156,7 +156,10 @@ function queueAdminNotification(req, recipients = REPORTING_TEAM_EMAILS) {
     // pero no se conserva su contenido dentro de localStorage.
     const { fileDataUrl, ...requestWithoutFile } = req;
     const queue = getPendingAdminNotifications();
-    const existing = queue.find(item => item.id === req.id);
+    const queueId = notificationType === 'status'
+        ? `${req.id}:status:${status}:${req.updatedAt || req.resolvedAt || Date.now()}`
+        : req.id;
+    const existing = queue.find(item => item.id === queueId);
 
     if (existing) {
         existing.recipients = [...new Set([...(existing.recipients || []), ...cleanRecipients])];
@@ -164,9 +167,11 @@ function queueAdminNotification(req, recipients = REPORTING_TEAM_EMAILS) {
         existing.lastAttemptAt = new Date().toISOString();
     } else {
         queue.unshift({
-            id: req.id,
+            id: queueId,
             request: requestWithoutFile,
             recipients: cleanRecipients,
+            notificationType,
+            status,
             attempts: 1,
             createdAt: new Date().toISOString(),
             lastAttemptAt: new Date().toISOString()
@@ -191,17 +196,25 @@ async function retryPendingAdminNotifications(silent = true) {
     try {
         for (const item of queue) {
             try {
-                const result = await sendTicketNotification(item.request, {
-                    adminRecipients: item.recipients,
-                    includeRequester: false,
-                    showPreview: false
-                });
+                const result = item.notificationType === 'status'
+                    ? await sendStatusNotification(item.request, item.status, {
+                        recipients: item.recipients,
+                        showPreview: false
+                    })
+                    : await sendTicketNotification(item.request, {
+                        adminRecipients: item.recipients,
+                        includeRequester: false,
+                        showPreview: false
+                    });
 
-                delivered += result.adminDelivered;
-                if (result.failedAdminRecipients.length > 0) {
+                const failedRecipients = item.notificationType === 'status'
+                    ? result.failedRecipients
+                    : result.failedAdminRecipients;
+                delivered += item.notificationType === 'status' ? result.delivered : result.adminDelivered;
+                if (failedRecipients.length > 0) {
                     remaining.push({
                         ...item,
-                        recipients: result.failedAdminRecipients,
+                        recipients: failedRecipients,
                         attempts: (item.attempts || 0) + 1,
                         lastAttemptAt: new Date().toISOString()
                     });
@@ -1800,6 +1813,79 @@ async function deliverTicketByEmail(req) {
     }
 }
 
+function buildStatusEmail(req, status) {
+    const isResolved = status === 'RESOLVED';
+    const isPending = status === 'PENDING';
+    const subject = isResolved
+        ? `[Ticket asignado] Solicitud ${req.id} resuelta - D&N`
+        : isPending
+            ? `[Pendiente] Actualización solicitud ${req.id} - D&N`
+            : `[En proceso] Actualización solicitud ${req.id} - D&N`;
+    const deliveryFormatted = req.deliveryDate && req.deliveryDate !== 'Procesamiento en curso'
+        ? new Date(req.deliveryDate + 'T00:00:00').toLocaleDateString('es-CO')
+        : (req.deliveryDate || 'Por acordar');
+    const htmlBody = isResolved
+        ? `
+            <p>Hola <strong>${escapeHtml(req.solicitante || 'Solicitante')}</strong>,</p>
+            <p>La solicitud <strong>${escapeHtml(req.id)}</strong> fue atendida y quedó <strong>RESUELTA</strong>.</p>
+            <div class="email-ticket-highlight"><span>Número de ticket</span><div class="ticket-code-big">${escapeHtml(req.ticketNumber || 'No informado')}</div></div>
+            <p><strong>Analista asignada:</strong> ${escapeHtml(req.analyst || 'No informada')}<br>
+            <strong>Respuesta:</strong> ${escapeHtml(req.resolutionNote || 'Solicitud completada exitosamente.')}</p>
+        `
+        : isPending
+            ? `
+                <p>Hola <strong>${escapeHtml(req.solicitante || 'Solicitante')}</strong>,</p>
+                <p>La solicitud <strong>${escapeHtml(req.id)}</strong> quedó en estado <strong>PENDIENTE</strong> para revisión del equipo de Reporting.</p>
+                <p><strong>Analista asignada:</strong> ${escapeHtml(req.analyst || 'Por asignar')}<br>
+                <strong>Detalle:</strong> ${escapeHtml(req.detalle || 'Sin detalle')}</p>
+            `
+            : `
+            <p>Hola <strong>${escapeHtml(req.solicitante || 'Solicitante')}</strong>,</p>
+            <p>La solicitud <strong>${escapeHtml(req.id)}</strong> pasó a estado <strong>EN PROCESO</strong>.</p>
+            <p><strong>Fecha estimada de entrega:</strong> ${escapeHtml(deliveryFormatted)}<br>
+            <strong>Analista asignada:</strong> ${escapeHtml(req.analyst || 'No informada')}<br>
+            <strong>Detalles:</strong> ${escapeHtml(req.inProgressNote || 'En proceso de desarrollo y conciliación.')}</p>
+        `;
+    return { subject, htmlBody };
+}
+
+async function sendStatusNotification(req, status, options = {}) {
+    const { recipients, showPreview = true } = options;
+    const allRecipients = [...new Set((recipients || [req.email, ...REPORTING_TEAM_EMAILS]).filter(Boolean))];
+    if (allRecipients.length === 0) throw new Error('No hay destinatarios configurados para la actualización.');
+    if (typeof emailjs === 'undefined') throw new Error('El servicio de correo no se cargó.');
+
+    const { subject, htmlBody } = buildStatusEmail(req, status);
+    if (showPreview) openEmailPreviewModal(allRecipients.join(', '), subject, htmlBody);
+
+    const results = await Promise.allSettled(allRecipients.map(email => emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        { to_email: email, subject, message: htmlBody, name: 'Reporting Dichter & Neira' }
+    )));
+    const failedRecipients = allRecipients.filter((_, index) => results[index].status !== 'fulfilled');
+    results.forEach((result, index) => {
+        if (result.status === 'rejected') console.error(`Error enviando actualización a ${allRecipients[index]}:`, result.reason);
+    });
+    return { delivered: allRecipients.length - failedRecipients.length, failedRecipients };
+}
+
+async function deliverStatusUpdateByEmail(req, status) {
+    try {
+        const result = await sendStatusNotification(req, status);
+        if (result.failedRecipients.length > 0) {
+            queueAdminNotification(req, result.failedRecipients, 'status', status);
+            showToast(`La actualización se entregó parcialmente; se reintentará para ${result.failedRecipients.length} destinatario(s).`, 'warning');
+            return;
+        }
+        showToast(`Actualización de ${req.id} enviada correctamente por correo.`, 'success');
+    } catch (error) {
+        console.error(`No se pudo enviar la actualización de ${req.id}:`, error);
+        queueAdminNotification(req, [req.email, ...REPORTING_TEAM_EMAILS], 'status', status);
+        showToast('La actualización quedó guardada y el correo se reintentará automáticamente.', 'warning');
+    }
+}
+
 async function sendTicketNotification(req, options = {}) {
     const {
         adminRecipients = REPORTING_TEAM_EMAILS,
@@ -1936,84 +2022,12 @@ function sendSubmissionConfirmationEmail(req) {
     }
 }
 
-function sendInProgressEmail(req) {
-    const userEmail = req.email || 'usuario@dichter-neira.com';
-    const allRecipients = [userEmail, ...REPORTING_TEAM_EMAILS];
-    const recipientsStr = allRecipients.join(', ');
-
-    const subject = `[En Proceso] Actualización Solicitud ${req.id} - Fecha de Entrega Acordada`;
-    const deliveryFormatted = req.deliveryDate ? new Date(req.deliveryDate + 'T00:00:00').toLocaleDateString('es-CO') : 'Por acordar';
-
-    const htmlBody = `
-        <p>Hola <strong>${escapeHtml(req.solicitante || 'Solicitante')}</strong>,</p>
-        <p>La solicitud <strong>${req.id}</strong> ha sido revisada por la analista <strong>${escapeHtml(req.analyst)}</strong> de Reporting y ha pasado a estado <strong>🔵 EN PROCESO</strong>.</p>
-        
-        <div style="background:rgba(51,189,238,0.12); border-left:4px solid #0D5CAB; padding:16px; margin:14px 0; border-radius:6px;">
-            <div style="font-size:0.95rem; font-weight:700; color:#0D5CAB; margin-bottom:6px;">
-                📅 Según la conversación sostenida, la fecha estimada de entrega es: <strong>${deliveryFormatted}</strong>
-            </div>
-            <div style="font-size:0.85rem; color:#1E293B;">
-                <strong>Detalles del Acuerdo:</strong> "${escapeHtml(req.inProgressNote || 'En proceso de desarrollo y conciliación.')}"
-            </div>
-        </div>
-
-        <div class="email-card-box">
-            <div><strong>Solicitud ID:</strong> ${escapeHtml(req.id)}</div>
-            <div><strong>Analista Asignada:</strong> ${escapeHtml(req.analyst)}</div>
-            <div><strong>Estudio:</strong> ${escapeHtml(req.estudio)} | <strong>País:</strong> ${escapeHtml(req.pais)}</div>
-        </div>
-    `;
-
-    openEmailPreviewModal(recipientsStr, subject, htmlBody);
-
-    if (typeof emailjs !== 'undefined') {
-        allRecipients.forEach(email => {
-            const templateParams = {
-                to_email: email,
-                subject: subject,
-                message: htmlBody,
-                name: 'Reporting Dichter & Neira'
-            };
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
-        });
-        showToast(`📧 Notificación de Estado En Proceso enviada a ${userEmail}`, 'info');
-    }
+async function sendInProgressEmail(req) {
+    return deliverStatusUpdateByEmail(req, 'IN_PROGRESS');
 }
 
-function sendResolutionTicketEmail(req) {
-    const userEmail = req.email || 'usuario@dichter-neira.com';
-    const allRecipients = [userEmail, ...REPORTING_TEAM_EMAILS];
-    const recipientsStr = allRecipients.join(', ');
-
-    const subject = `[Ticket Asignado] Solución Solicitud ${req.id} - D&N`;
-
-    const htmlBody = `
-        <p>Hola <strong>${escapeHtml(req.solicitante || 'Solicitante')}</strong>,</p>
-        <p>La solicitud <strong>${req.id}</strong> ha sido atendida y completada exitosamente por la analista <strong>${escapeHtml(req.analyst)}</strong> de Reporting:</p>
-        <div class="email-ticket-highlight">
-            <span style="font-size:0.75rem; color:#64748B;">Número de Ticket Generado</span>
-            <div class="ticket-code-big">${escapeHtml(req.ticketNumber)}</div>
-        </div>
-        <div class="email-card-box">
-            <div><strong>Analista Asignada:</strong> ${escapeHtml(req.analyst)}</div>
-            <div><strong>Respuesta / Nota:</strong> "${escapeHtml(req.resolutionNote || 'Solicitud completada exitosamente.')}"</div>
-        </div>
-    `;
-
-    openEmailPreviewModal(recipientsStr, subject, htmlBody);
-
-    if (typeof emailjs !== 'undefined') {
-        allRecipients.forEach(email => {
-            const templateParams = {
-                to_email: email,
-                subject: subject,
-                message: htmlBody,
-                name: 'Reporting Dichter & Neira'
-            };
-            emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, templateParams);
-        });
-        showToast(`📧 Correo con Ticket enviado a ${userEmail}`, 'success');
-    }
+async function sendResolutionTicketEmail(req) {
+    return deliverStatusUpdateByEmail(req, 'RESOLVED');
 }
 
 // ==========================================================================
@@ -2718,7 +2732,7 @@ function autoGenerateTicket() {
     }
 }
 
-function saveModalResponse() {
+async function saveModalResponse() {
     const analystVal = document.getElementById('modalAnalyst').value;
     const statusVal = document.getElementById('modalStatus').value;
 
@@ -2747,10 +2761,11 @@ function saveModalResponse() {
         req.inProgressNote = noteVal;
         
         req.updatedAt = new Date().toISOString();
-        syncCloudData([req.id]);
+        const synced = await syncCloudData([req.id]);
         renderAll();
         closeModal();
-        sendInProgressEmail(req);
+        if (!synced) showToast('El estado se actualizó localmente, pero no pudo sincronizarse con la nube.', 'warning');
+        await sendInProgressEmail(req);
     } else if (statusVal === 'RESOLVED') {
         const ticketVal = document.getElementById('modalTicket').value.trim();
         const noteVal = document.getElementById('modalNote').value.trim();
@@ -2765,16 +2780,18 @@ function saveModalResponse() {
         req.resolvedAt = req.resolvedAt || new Date().toISOString();
 
         req.updatedAt = new Date().toISOString();
-        syncCloudData([req.id]);
+        const synced = await syncCloudData([req.id]);
         renderAll();
         closeModal();
-        sendResolutionTicketEmail(req);
+        if (!synced) showToast('El estado se actualizó localmente, pero no pudo sincronizarse con la nube.', 'warning');
+        await sendResolutionTicketEmail(req);
     } else {
         req.updatedAt = new Date().toISOString();
-        syncCloudData([req.id]);
+        const synced = await syncCloudData([req.id]);
         renderAll();
         closeModal();
-        showToast('Estado de la solicitud actualizado', 'info');
+        if (!synced) showToast('El estado se actualizó localmente, pero no pudo sincronizarse con la nube.', 'warning');
+        await deliverStatusUpdateByEmail(req, 'PENDING');
     }
 }
 
