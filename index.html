@@ -434,7 +434,7 @@
                     <!-- Selector de Tipo de BI -->
                     <div class="type-selector-box">
                         <label class="type-option-label">Tipo de Requerimiento <span class="req">*</span></label>
-                        <div class="type-toggle-group three-cols">
+                        <div class="type-toggle-group four-cols">
                             <label class="radio-card">
                                 <input type="radio" name="biType" value="EXISTING" checked onchange="toggleBiFields('EXISTING')">
                                 <div class="radio-content">
@@ -454,6 +454,13 @@
                                 <div class="radio-content">
                                     <i data-lucide="zap"></i>
                                     <span>Solicitud Esporádica</span>
+                                </div>
+                            </label>
+                            <label class="radio-card">
+                                <input type="radio" name="biType" value="INCIDENT" onchange="toggleBiFields('INCIDENT')">
+                                <div class="radio-content">
+                                    <i data-lucide="triangle-alert"></i>
+                                    <span>Novedades con BI Existente</span>
                                 </div>
                             </label>
                         </div>
@@ -566,7 +573,7 @@
 
                         <!-- DETALLE DE LA SOLICITUD -->
                         <div class="form-group">
-                            <label for="rep-solicitud-detalle">Detalle de la Solicitud <span class="req">*</span></label>
+                            <label id="rep-detail-label" for="rep-solicitud-detalle">Detalle de la Solicitud <span class="req">*</span></label>
                             <textarea id="rep-solicitud-detalle" rows="3" required placeholder="Describe los cambios a realizar en el filtro/medida o la estructura del nuevo BI..."></textarea>
                         </div>
 
@@ -662,6 +669,7 @@
                             <option value="ALL">Todas las Categorías</option>
                             <option value="ENCOLADA">Solo Encoladas PDV</option>
                             <option value="BI_EXISTING">Power BI Existente</option>
+                            <option value="BI_EXISTING_INCIDENT">Novedades con BI Existente</option>
                             <option value="BI_NEW">Power BI Nuevo</option>
                             <option value="BI_SPORADIC">Solicitud Esporádica</option>
                         </select>
@@ -1153,6 +1161,7 @@
                             <i data-lucide="tag"></i>
                             <select id="ing-cat" required>
                                 <option value="BI_EXISTING">Power BI Existente</option>
+                                <option value="BI_EXISTING_INCIDENT">Novedades con BI Existente</option>
                                 <option value="BI_NEW">Power BI Nuevo</option>
                                 <option value="ENCOLADA">Encolada PDV</option>
                                 <option value="BI_SPORADIC">Solicitud Esporádica</option>
@@ -1207,6 +1216,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3206.0"></script>
+    <script src="app.js?v=3207.0"></script>
 </body>
 </html>

@@ -1070,8 +1070,22 @@ function toggleEncFields(type) {
 function toggleBiFields(type) {
     const existingBlock = document.getElementById('fields-existing-bi');
     const newBlock = document.getElementById('fields-new-bi');
+    const detailLabel = document.getElementById('rep-detail-label');
+    const detailInput = document.getElementById('rep-solicitud-detalle');
+    const isExistingBi = type === 'EXISTING' || type === 'INCIDENT';
 
-    if (type === 'EXISTING') {
+    if (detailLabel) {
+        detailLabel.innerHTML = type === 'INCIDENT'
+            ? 'Detalle del error o novedad del BI <span class="req">*</span>'
+            : 'Detalle de la Solicitud <span class="req">*</span>';
+    }
+    if (detailInput) {
+        detailInput.placeholder = type === 'INCIDENT'
+            ? 'Describe el error o inconsistencia, el dato esperado y dónde se presenta en el informe...'
+            : 'Describe los cambios a realizar en el filtro/medida o la estructura del nuevo BI...';
+    }
+
+    if (isExistingBi) {
         existingBlock.classList.remove('hidden');
         newBlock.classList.add('hidden');
         document.getElementById('rep-usuario').setAttribute('required', 'required');
@@ -1612,6 +1626,7 @@ async function handleReportingSubmit(e) {
         let catName = 'BI_EXISTING';
         if (biType === 'NEW') catName = 'BI_NEW';
         else if (biType === 'SPORADIC') catName = 'BI_SPORADIC';
+        else if (biType === 'INCIDENT') catName = 'BI_EXISTING_INCIDENT';
 
         const newReq = {
             id: generateUniqueReqId(),
@@ -1630,10 +1645,11 @@ async function handleReportingSubmit(e) {
             resolvedAt: null
         };
 
-        if (biType === 'EXISTING') {
+        if (biType === 'EXISTING' || biType === 'INCIDENT') {
             newReq.usuario = getInputValue('rep-usuario');
             newReq.biNameToEdit = getInputValue('rep-bi-name');
             newReq.solicitante = newReq.usuario || email;
+            newReq.isBiIncident = biType === 'INCIDENT';
         } else if (biType === 'NEW') {
             newReq.frecuencia = getInputValue('rep-frecuencia');
             newReq.area = getInputValue('rep-area');
@@ -1650,7 +1666,10 @@ async function handleReportingSubmit(e) {
 
         // 2. Limpiar formulario
         const formElem = document.getElementById('form-reporting');
-        if (formElem) formElem.reset();
+        if (formElem) {
+            formElem.reset();
+            toggleBiFields('EXISTING');
+        }
 
         // Guarda primero en Supabase: así aparece de inmediato en la bandeja
         // administrativa de cualquier computador.
@@ -1718,6 +1737,7 @@ async function sendTicketNotification(req, options = {}) {
         ENCOLADA: 'Encolada PDV',
         BI_NEW: 'Power BI nuevo',
         BI_EXISTING: 'Power BI existente',
+        BI_EXISTING_INCIDENT: 'Novedad con BI existente',
         BI_SPORADIC: 'Solicitud esporádica'
     };
     const category = categoryNames[req.category] || req.category || 'Solicitud de Reporting';
@@ -1776,6 +1796,7 @@ function sendSubmissionConfirmationEmail(req) {
 
     let catTitle = 'Reporting Power BI';
     if (req.category === 'ENCOLADA') catTitle = 'Encolada PDV';
+    else if (req.category === 'BI_EXISTING_INCIDENT') catTitle = 'Novedad con BI Existente';
     else if (req.category === 'BI_SPORADIC') catTitle = 'Solicitud Esporádica';
 
     const subject = `[Nueva Solicitud ${req.id}] ${catTitle}: ${req.estudio} (${req.pais})`;
@@ -2033,7 +2054,7 @@ function renderReportingHistory() {
 
     // Se muestran TODAS las solicitudes de Reporting recibidas en tiempo real
     const myReportingReqs = state.requests.filter(r => 
-        r.category === 'BI_EXISTING' || r.category === 'BI_NEW' || r.category === 'BI_SPORADIC'
+        r.category === 'BI_EXISTING' || r.category === 'BI_EXISTING_INCIDENT' || r.category === 'BI_NEW' || r.category === 'BI_SPORADIC'
     );
 
     if (myReportingReqs.length === 0) {
@@ -2054,10 +2075,12 @@ function renderReportingHistory() {
         const isInProgress = req.status === 'IN_PROGRESS';
         const isNew = req.category === 'BI_NEW';
         const isSporadic = req.category === 'BI_SPORADIC';
+        const isIncident = req.category === 'BI_EXISTING_INCIDENT';
 
         let catLabel = 'Edición BI Existente';
         if (isNew) catLabel = 'Power BI Nuevo';
         if (isSporadic) catLabel = 'Solicitud Esporádica';
+        if (isIncident) catLabel = 'Novedad con BI Existente';
 
         let statusText = 'En Evaluación';
         let statusClass = 'pending';
@@ -2145,6 +2168,9 @@ function renderAdminTable() {
         } else if (req.category === 'BI_EXISTING') {
             categoryLabel = 'BI Existente';
             detailText = req.biNameToEdit;
+        } else if (req.category === 'BI_EXISTING_INCIDENT') {
+            categoryLabel = 'Novedad BI';
+            detailText = req.biNameToEdit || req.detalle || '--';
         } else if (req.category === 'BI_NEW') {
             categoryLabel = 'BI Nuevo';
             detailText = `Área: ${req.area}`;
@@ -2453,6 +2479,7 @@ function renderAnalyticsCharts() {
 
     const countEncolada = filteredRequests.filter(r => r.category === 'ENCOLADA').length;
     const countBiExisting = filteredRequests.filter(r => r.category === 'BI_EXISTING').length;
+    const countBiIncident = filteredRequests.filter(r => r.category === 'BI_EXISTING_INCIDENT').length;
     const countBiNew = filteredRequests.filter(r => r.category === 'BI_NEW').length;
     const countBiSporadic = filteredRequests.filter(r => r.category === 'BI_SPORADIC').length;
 
@@ -2461,10 +2488,10 @@ function renderAnalyticsCharts() {
         state.charts.category = new Chart(ctxCategory, {
             type: 'pie',
             data: {
-                labels: ['Encoladas PDV', 'Power BI Existente', 'Power BI Nuevo', 'Esporádica'],
+                labels: ['Encoladas PDV', 'Power BI Existente', 'Novedades BI', 'Power BI Nuevo', 'Esporádica'],
                 datasets: [{
-                    data: [countEncolada, countBiExisting, countBiNew, countBiSporadic],
-                    backgroundColor: ['#0D5CAB', '#6D37A9', '#F83875', '#F59E0B'],
+                    data: [countEncolada, countBiExisting, countBiIncident, countBiNew, countBiSporadic],
+                    backgroundColor: ['#0D5CAB', '#6D37A9', '#E05252', '#F83875', '#F59E0B'],
                     borderWidth: 2,
                     borderColor: '#FFFFFF'
                 }]
