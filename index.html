@@ -1198,6 +1198,23 @@
                     </div>
                 </div>
 
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ing-requested-date">Fecha de solicitud</label>
+                        <div class="input-with-icon">
+                            <i data-lucide="calendar"></i>
+                            <input type="date" id="ing-requested-date" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="ing-delivered-date">Fecha de entrega <span style="font-weight:400; color:var(--text-muted);">(si aplica)</span></label>
+                        <div class="input-with-icon">
+                            <i data-lucide="calendar-check"></i>
+                            <input type="date" id="ing-delivered-date">
+                        </div>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="ing-detalle">Detalle del Requerimiento</label>
                     <textarea id="ing-detalle" rows="2" placeholder="Detalle o descripción de la solicitud..." required></textarea>

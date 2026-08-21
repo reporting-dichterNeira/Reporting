@@ -952,6 +952,10 @@ function closeReportingAuthModal() {
 
 function openIngestModal() {
     const modal = document.getElementById('ingest-modal');
+    const requestedDate = document.getElementById('ing-requested-date');
+    if (requestedDate && !requestedDate.value) {
+        requestedDate.value = getLocalDateInputValue();
+    }
     if (modal) modal.classList.add('active');
 }
 
@@ -970,6 +974,23 @@ function handleIngestSubmit(e) {
         const pais = getInputValue('ing-pais');
         const statusVal = getInputValue('ing-status') || 'PENDING';
         const detalle = getInputValue('ing-detalle');
+        const requestedDate = getInputValue('ing-requested-date');
+        const deliveredDate = getInputValue('ing-delivered-date');
+
+        if (!requestedDate) {
+            showToast('Debes ingresar la fecha en que se solicitó el requerimiento.', 'warning');
+            return;
+        }
+
+        if (statusVal === 'RESOLVED' && !deliveredDate) {
+            showToast('Debes ingresar la fecha de entrega para una solicitud resuelta.', 'warning');
+            return;
+        }
+
+        if (deliveredDate && deliveredDate < requestedDate) {
+            showToast('La fecha de entrega no puede ser anterior a la fecha de solicitud.', 'warning');
+            return;
+        }
 
         const newReq = {
             id: id,
@@ -985,8 +1006,9 @@ function handleIngestSubmit(e) {
             status: statusVal,
             ticketNumber: null,
             resolutionNote: null,
-            createdAt: new Date().toISOString(),
-            resolvedAt: statusVal === 'RESOLVED' ? new Date().toISOString() : null
+            createdAt: dateInputToIso(requestedDate),
+            resolvedAt: deliveredDate ? dateInputToIso(deliveredDate) : null,
+            updatedAt: deliveredDate ? dateInputToIso(deliveredDate) : null
         };
 
         state.requests = mergeRequests(state.requests, [newReq]);
@@ -2197,6 +2219,8 @@ function renderReportingHistory() {
         if (isNew) detailHeader = `Área: ${escapeHtml(req.area || 'General')} (Frecuencia: ${escapeHtml(req.frecuencia || 'N/A')})`;
         if (isSporadic) detailHeader = `Requerimiento Esporádico: ${escapeHtml((req.detalle || '').slice(0, 45))}`;
 
+        const managementDate = getManagementDate(req);
+
         return `
             <div class="item-card">
                 <div class="item-top">
@@ -2212,6 +2236,7 @@ function renderReportingHistory() {
                 <div style="font-size:0.8rem; color:var(--text-muted);">
                     Estudio: ${escapeHtml(req.estudio)} | País: ${escapeHtml(req.pais)} | Solicitante: ${escapeHtml(req.solicitante || req.email || 'N/A')}
                 </div>
+                ${managementDate ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">Fecha de gestión: <strong>${formatPortalDate(managementDate)}</strong></div>` : ''}
                 ${req.fileName ? `<div style="margin-top:4px;">${renderFileChip(req)}</div>` : ''}
                 ${req.analyst ? `<div style="margin-top:4px;"><span class="analyst-chip">Analista: ${escapeHtml(req.analyst)}</span></div>` : ''}
             </div>
@@ -2819,7 +2844,7 @@ function exportToCSV() {
         return;
     }
 
-    let csv = "data:text/csv;charset=utf-8,ID,Categoria,Estudio,Pais,CorreoSolicitante,Analista,Estado,Ticket,Respuesta\n";
+    let csv = "data:text/csv;charset=utf-8,ID,Categoria,Estudio,Pais,CorreoSolicitante,Analista,Estado,FechaSolicitud,FechaGestion,Ticket,Respuesta\n";
 
     state.requests.forEach(r => {
         const row = [
@@ -2830,6 +2855,8 @@ function exportToCSV() {
             `"${r.email || r.solicitante || ''}"`,
             `"${r.analyst || 'Sin Asignar'}"`,
             `"${r.status}"`,
+            `"${formatPortalDate(r.createdAt)}"`,
+            `"${formatPortalDate(getManagementDate(r))}"`,
             `"${r.ticketNumber || ''}"`,
             `"${(r.resolutionNote || '').replace(/"/g, '""')}"`
         ].join(",");
@@ -2864,6 +2891,33 @@ function showToast(msg, type = 'success') {
 
 function copyText(text) {
     navigator.clipboard.writeText(text).then(() => showToast(`Copiado: ${text}`, 'success'));
+}
+
+function getLocalDateInputValue(date = new Date()) {
+    const offset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function dateInputToIso(dateValue) {
+    return new Date(`${dateValue}T12:00:00`).toISOString();
+}
+
+function getManagementDate(request) {
+    if (!request) return null;
+    if (request.resolvedAt) return request.resolvedAt;
+    return request.status !== 'PENDING' ? request.updatedAt || null : null;
+}
+
+function formatPortalDate(dateValue) {
+    if (!dateValue) return '';
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toLocaleDateString('es-CO', {
+        timeZone: 'America/Bogota',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
 }
 
 function escapeHtml(str) {
