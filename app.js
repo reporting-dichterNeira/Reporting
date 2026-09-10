@@ -1258,13 +1258,21 @@ function renderImportantLinks() {
     const links = Array.isArray(state.importantLinks) ? state.importantLinks : [];
     const searchInput = document.getElementById('important-links-search');
     const categoryFilter = document.getElementById('important-links-category-filter');
+    const categorySuggestions = document.getElementById('important-link-category-options');
     const searchTerm = (searchInput?.value || '').trim().toLowerCase();
     let selectedCategory = categoryFilter?.value || 'ALL';
+    const categories = [...new Set(links.map(getImportantLinkCategory))]
+        .sort((a, b) => a.localeCompare(b, 'es'));
+
+    if (categorySuggestions) {
+        const savedCategories = categories.filter(category => category !== 'Sin categoría');
+        categorySuggestions.innerHTML = savedCategories
+            .map(category => `<option value="${escapeHtml(category)}"></option>`)
+            .join('');
+    }
 
     if (categoryFilter) {
         const currentValue = categoryFilter.value || 'ALL';
-        const categories = [...new Set(links.map(getImportantLinkCategory))]
-            .sort((a, b) => a.localeCompare(b, 'es'));
         categoryFilter.innerHTML = `<option value="ALL">Todas las categorías</option>${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('')}`;
         categoryFilter.value = categories.includes(currentValue) ? currentValue : 'ALL';
         selectedCategory = categoryFilter.value;
