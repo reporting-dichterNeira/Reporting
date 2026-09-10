@@ -917,6 +917,7 @@ function updateHeaderSessionUI() {
     const navReportingBtn = document.getElementById('nav-btn-reporting');
 
     const navAdminBtn = document.getElementById('nav-btn-admin');
+    const navLinksBtn = document.getElementById('nav-btn-links');
     const navVacacionesBtn = document.getElementById('nav-btn-vacaciones');
     const navAnalyticsBtn = document.getElementById('nav-btn-analytics');
 
@@ -931,6 +932,7 @@ function updateHeaderSessionUI() {
 
         // Mostrar pestañas administrativas de Reporting
         if (navAdminBtn) navAdminBtn.classList.remove('hidden');
+        if (navLinksBtn) navLinksBtn.classList.remove('hidden');
         if (navVacacionesBtn) navVacacionesBtn.classList.remove('hidden');
         if (navAnalyticsBtn) navAnalyticsBtn.classList.remove('hidden');
     } else {
@@ -944,6 +946,7 @@ function updateHeaderSessionUI() {
 
         // Ocultar pestañas administrativas
         if (navAdminBtn) navAdminBtn.classList.add('hidden');
+        if (navLinksBtn) navLinksBtn.classList.add('hidden');
         if (navVacacionesBtn) navVacacionesBtn.classList.add('hidden');
         if (navAnalyticsBtn) navAnalyticsBtn.classList.add('hidden');
     }
@@ -1042,7 +1045,7 @@ function handleReportingAuth(e) {
         closeReportingAuthModal();
         updateHeaderSessionUI();
         switchTab('admin');
-        showToast('¡Desbloqueadas pestañas de Reporting, Vacaciones y Analytics!', 'success');
+        showToast('¡Desbloqueadas las pestañas de Reporting!', 'success');
     } else {
         showToast('Credenciales de Reporting incorrectas', 'warning');
     }
@@ -1057,7 +1060,7 @@ function logoutReporting() {
 }
 
 function switchTab(tabId) {
-    if ((tabId === 'admin' || tabId === 'vacaciones' || tabId === 'analytics') && !state.isReportingAuthenticated) {
+    if ((tabId === 'admin' || tabId === 'links' || tabId === 'vacaciones' || tabId === 'analytics') && !state.isReportingAuthenticated) {
         openReportingAuthModal();
         return;
     }
