@@ -771,7 +771,8 @@
                         <textarea id="important-link-description" rows="2" placeholder="Explica brevemente para qué sirve este acceso."></textarea>
                     </div>
                     <div class="modal-footer" style="margin-top:12px;">
-                        <button type="submit" class="btn-dn-primary"><i data-lucide="plus"></i> Agregar link</button>
+                        <button type="button" id="important-link-cancel-edit" class="btn-secondary hidden" onclick="cancelImportantLinkEdit()">Cancelar edición</button>
+                        <button type="submit" id="important-link-submit" class="btn-dn-primary"><i data-lucide="plus"></i> Agregar link</button>
                     </div>
                 </form>
 
@@ -1292,6 +1293,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3212.0"></script>
+    <script src="app.js?v=3213.0"></script>
 </body>
 </html>

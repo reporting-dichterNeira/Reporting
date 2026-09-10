@@ -65,6 +65,7 @@ let state = {
         }
     ],
     importantLinks: [],
+    editingImportantLinkId: null,
     isReportingAuthenticated: false,
     activeTab: 'inicio',
     activeModalId: null,
@@ -1161,27 +1162,76 @@ async function handleImportantLinkSubmit(e) {
         return;
     }
 
-    const linkId = `LINK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-    state.importantLinks.unshift({
-        id: linkId,
-        name,
-        url,
-        category,
-        description,
-        createdAt: new Date().toISOString()
-    });
+    const editingIndex = state.importantLinks.findIndex(link => link.id === state.editingImportantLinkId);
+    const isEditing = editingIndex !== -1;
+
+    if (isEditing) {
+        state.importantLinks[editingIndex] = {
+            ...state.importantLinks[editingIndex],
+            name,
+            url,
+            category,
+            description,
+            updatedAt: new Date().toISOString()
+        };
+    } else {
+        const linkId = `LINK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        state.importantLinks.unshift({
+            id: linkId,
+            name,
+            url,
+            category,
+            description,
+            createdAt: new Date().toISOString()
+        });
+    }
 
     const savedInCloud = await syncImportantLinks();
     renderImportantLinks();
-    if (savedInCloud) {
-        document.getElementById('important-links-form')?.reset();
-    }
+    resetImportantLinkForm();
     showToast(
         savedInCloud
-            ? 'Link importante agregado y sincronizado.'
-            : 'El link se agregó localmente, pero no pudo sincronizarse.',
+            ? isEditing ? 'Link actualizado y sincronizado.' : 'Link importante agregado y sincronizado.'
+            : isEditing ? 'El link se actualizó localmente, pero no pudo sincronizarse.' : 'El link se agregó localmente, pero no pudo sincronizarse.',
         savedInCloud ? 'success' : 'warning'
     );
+}
+
+function editImportantLink(index) {
+    const link = state.importantLinks[index];
+    const form = document.getElementById('important-links-form');
+    if (!link || !form) return;
+
+    state.editingImportantLinkId = link.id;
+    document.getElementById('important-link-name').value = link.name || '';
+    document.getElementById('important-link-url').value = link.url || '';
+    document.getElementById('important-link-category').value = link.category || '';
+    document.getElementById('important-link-description').value = link.description || '';
+    document.getElementById('important-link-cancel-edit')?.classList.remove('hidden');
+
+    const submitButton = document.getElementById('important-link-submit');
+    if (submitButton) {
+        submitButton.innerHTML = '<i data-lucide="save"></i> Guardar cambios';
+    }
+
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    lucide.createIcons();
+}
+
+function cancelImportantLinkEdit() {
+    resetImportantLinkForm();
+}
+
+function resetImportantLinkForm() {
+    state.editingImportantLinkId = null;
+    document.getElementById('important-links-form')?.reset();
+    document.getElementById('important-link-cancel-edit')?.classList.add('hidden');
+
+    const submitButton = document.getElementById('important-link-submit');
+    if (submitButton) {
+        submitButton.innerHTML = '<i data-lucide="plus"></i> Agregar link';
+    }
+    lucide.createIcons();
 }
 
 async function deleteImportantLink(index) {
@@ -1256,9 +1306,14 @@ function renderImportantLinks() {
                     </a>
                     ${link.description ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(link.description)}</div>` : ''}
                 </div>
-                <button class="btn-danger btn-sm" type="button" onclick="deleteImportantLink(${index})" title="Eliminar link">
-                    <i data-lucide="trash-2"></i>
-                </button>
+                <div class="action-buttons-cell">
+                    <button class="btn-secondary btn-sm" type="button" onclick="editImportantLink(${index})" title="Editar link">
+                        <i data-lucide="edit-2"></i> Editar
+                    </button>
+                    <button class="btn-danger btn-sm" type="button" onclick="deleteImportantLink(${index})" title="Eliminar link">
+                        <i data-lucide="trash-2"></i>
+                    </button>
+                </div>
             </div>
         `;
     }).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
