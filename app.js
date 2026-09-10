@@ -1300,31 +1300,50 @@ function renderImportantLinks() {
         return;
     }
 
-    container.innerHTML = filteredLinks.map(({ link, index }) => {
-        const safeUrl = normalizeImportantLinkUrl(link.url);
-        if (!safeUrl) return '';
-        const category = getImportantLinkCategory(link);
+    const linksByCategory = filteredLinks.reduce((groups, item) => {
+        const category = getImportantLinkCategory(item.link);
+        if (!groups.has(category)) groups.set(category, []);
+        groups.get(category).push(item);
+        return groups;
+    }, new Map());
 
-        return `
-            <div class="item-card" style="display:flex; justify-content:space-between; align-items:center; gap:14px;">
-                <div style="min-width:0;">
-                    <span class="tag-category" style="margin-right:6px;">${escapeHtml(category)}</span>
-                    <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700; color:var(--dn-blue-primary); text-decoration:none; word-break:break-word;">
-                        <i data-lucide="external-link" style="width:15px; height:15px; vertical-align:text-bottom;"></i> ${escapeHtml(link.name || 'Link sin nombre')}
-                    </a>
-                    ${link.description ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(link.description)}</div>` : ''}
+    container.innerHTML = [...linksByCategory.entries()]
+        .sort(([firstCategory], [secondCategory]) => firstCategory.localeCompare(secondCategory, 'es'))
+        .map(([category, categoryLinks]) => `
+            <details class="important-links-folder" open>
+                <summary class="important-links-folder-header">
+                    <span class="important-links-folder-title">
+                        <i data-lucide="folder"></i>
+                        ${escapeHtml(category)}
+                    </span>
+                    <span class="important-links-folder-count">${categoryLinks.length} ${categoryLinks.length === 1 ? 'link' : 'links'}</span>
+                </summary>
+                <div class="important-links-folder-content">
+                    ${categoryLinks.map(({ link, index }) => {
+                        const safeUrl = normalizeImportantLinkUrl(link.url);
+                        if (!safeUrl) return '';
+                        return `
+                            <div class="item-card important-link-item">
+                                <div style="min-width:0;">
+                                    <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700; color:var(--dn-blue-primary); text-decoration:none; word-break:break-word;">
+                                        <i data-lucide="external-link" style="width:15px; height:15px; vertical-align:text-bottom;"></i> ${escapeHtml(link.name || 'Link sin nombre')}
+                                    </a>
+                                    ${link.description ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(link.description)}</div>` : ''}
+                                </div>
+                                <div class="action-buttons-cell">
+                                    <button class="btn-secondary btn-sm" type="button" onclick="editImportantLink(${index})" title="Editar link">
+                                        <i data-lucide="edit-2"></i> Editar
+                                    </button>
+                                    <button class="btn-danger btn-sm" type="button" onclick="deleteImportantLink(${index})" title="Eliminar link">
+                                        <i data-lucide="trash-2"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
-                <div class="action-buttons-cell">
-                    <button class="btn-secondary btn-sm" type="button" onclick="editImportantLink(${index})" title="Editar link">
-                        <i data-lucide="edit-2"></i> Editar
-                    </button>
-                    <button class="btn-danger btn-sm" type="button" onclick="deleteImportantLink(${index})" title="Eliminar link">
-                        <i data-lucide="trash-2"></i>
-                    </button>
-                </div>
-            </div>
-        `;
-    }).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
+            </details>
+        `).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
 
     lucide.createIcons();
 }

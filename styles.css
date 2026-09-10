@@ -1102,6 +1102,56 @@ input:focus, select:focus, textarea:focus {
     background: #FFFFFF;
 }
 
+/* CARPETAS DE LINKS IMPORTANTES */
+.important-links-folder {
+    border: 1px solid var(--dn-border-light);
+    border-radius: var(--radius-md);
+    background: #FFFFFF;
+    overflow: hidden;
+}
+
+.important-links-folder-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    color: var(--dn-blue-primary);
+    font-weight: 700;
+    list-style: none;
+}
+
+.important-links-folder-header::-webkit-details-marker { display: none; }
+
+.important-links-folder-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.important-links-folder-title svg { width: 18px; height: 18px; color: var(--dn-orange); }
+
+.important-links-folder-count {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.important-links-folder-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 10px 10px;
+}
+
+.important-link-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 14px;
+}
+
 .item-top {
     display: flex;
     justify-content: space-between;
