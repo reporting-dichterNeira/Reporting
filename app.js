@@ -8,6 +8,8 @@ const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 const PENDING_EMAIL_NOTIFICATIONS_KEY = 'dn_portal_pending_admin_emails_v1';
 const ANALYST_STATUS_RECORD_ID = 'PORTAL_META_ANALYST_STATUS_V1';
+const IMPORTANT_LINKS_RECORD_ID = 'PORTAL_META_IMPORTANT_LINKS_V1';
+const IMPORTANT_LINK_CREDENTIALS_KEY = 'dn_portal_important_link_credentials_v1';
 
 // ALMACENAMIENTO CENTRAL: SUPABASE
 // La publishable key es pública por diseño; las reglas RLS de Supabase
@@ -63,6 +65,8 @@ let state = {
             note: '🏖️ En periodo de vacaciones. Durante estos días Mayumi Sanchez estará atendiendo y respaldando sus tareas.'
         }
     ],
+    importantLinks: [],
+    importantLinkCredentials: {},
     isReportingAuthenticated: false,
     activeTab: 'inicio',
     activeModalId: null,
@@ -264,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadFromStorage();
     loadNovedadesFromStorage();
+    loadImportantLinkCredentials();
 
     const savedAuth = sessionStorage.getItem(REPORTING_SESSION_KEY);
     if (savedAuth === 'true') {
@@ -317,8 +322,13 @@ async function fetchCloudData(userTriggered = false) {
             saveNovedadesToStorage();
         }
 
+        const importantLinksRecord = (data || []).find(row => row && row.id === IMPORTANT_LINKS_RECORD_ID);
+        if (Array.isArray(importantLinksRecord?.payload?.importantLinks)) {
+            state.importantLinks = importantLinksRecord.payload.importantLinks;
+        }
+
         const cloudRequests = (data || [])
-            .filter(row => row && row.id && row.payload && row.id !== ANALYST_STATUS_RECORD_ID && !String(row.id).startsWith('TEST-SYNC-'))
+            .filter(row => row && row.id && row.payload && row.id !== ANALYST_STATUS_RECORD_ID && row.id !== IMPORTANT_LINKS_RECORD_ID && !String(row.id).startsWith('TEST-SYNC-'))
             .map(row => ({
                 ...row.payload,
                 id: row.id,
@@ -333,6 +343,7 @@ async function fetchCloudData(userTriggered = false) {
         renderAll();
         renderNovedades();
         renderVacacionesAdminTable();
+        renderImportantLinks();
         checkTodayNovelty();
 
         if (userTriggered) {
@@ -1104,6 +1115,156 @@ async function syncAnalystStatus() {
         console.error('Error guardando vacaciones en Supabase:', error);
         return false;
     }
+}
+
+async function syncImportantLinks() {
+    const client = getSupabaseClient();
+    if (!client) return false;
+
+    try {
+        const now = new Date().toISOString();
+        const { error } = await client
+            .from('portal_requests')
+            .upsert({
+                id: IMPORTANT_LINKS_RECORD_ID,
+                payload: { importantLinks: state.importantLinks },
+                created_at: now,
+                updated_at: now
+            }, { onConflict: 'id' });
+        if (error) throw error;
+        return true;
+    } catch (error) {
+        console.error('Error guardando links importantes en Supabase:', error);
+        return false;
+    }
+}
+
+function normalizeImportantLinkUrl(urlValue) {
+    try {
+        const parsedUrl = new URL(urlValue);
+        return ['http:', 'https:'].includes(parsedUrl.protocol) ? parsedUrl.href : '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function loadImportantLinkCredentials() {
+    try {
+        const savedCredentials = JSON.parse(localStorage.getItem(IMPORTANT_LINK_CREDENTIALS_KEY) || '{}');
+        state.importantLinkCredentials = savedCredentials && typeof savedCredentials === 'object' ? savedCredentials : {};
+    } catch (error) {
+        console.error('No fue posible cargar las credenciales locales de links:', error);
+        state.importantLinkCredentials = {};
+    }
+}
+
+function saveImportantLinkCredentials() {
+    try {
+        localStorage.setItem(IMPORTANT_LINK_CREDENTIALS_KEY, JSON.stringify(state.importantLinkCredentials));
+    } catch (error) {
+        console.error('No fue posible guardar las credenciales locales de links:', error);
+    }
+}
+
+async function handleImportantLinkSubmit(e) {
+    e.preventDefault();
+
+    const name = getInputValue('important-link-name');
+    const url = normalizeImportantLinkUrl(getInputValue('important-link-url'));
+    const description = getInputValue('important-link-description');
+    const username = getInputValue('important-link-username');
+    const password = document.getElementById('important-link-password')?.value || '';
+
+    if (!name || !url) {
+        showToast('Ingresa un nombre y un link válido que comience con http:// o https://.', 'warning');
+        return;
+    }
+
+    const linkId = `LINK-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    state.importantLinks.unshift({
+        id: linkId,
+        name,
+        url,
+        description,
+        createdAt: new Date().toISOString()
+    });
+
+    if (username || password) {
+        state.importantLinkCredentials[linkId] = { username, password };
+        saveImportantLinkCredentials();
+    }
+
+    const savedInCloud = await syncImportantLinks();
+    renderImportantLinks();
+    if (savedInCloud) {
+        document.getElementById('important-links-form')?.reset();
+    }
+    showToast(
+        savedInCloud
+            ? 'Link importante agregado y sincronizado.'
+            : 'El link se agregó localmente, pero no pudo sincronizarse.',
+        savedInCloud ? 'success' : 'warning'
+    );
+}
+
+async function deleteImportantLink(index) {
+    const link = state.importantLinks[index];
+    if (!link) return;
+
+    if (!confirm(`¿Eliminar el link “${link.name}”?`)) return;
+
+    state.importantLinks.splice(index, 1);
+    delete state.importantLinkCredentials[link.id];
+    saveImportantLinkCredentials();
+    const savedInCloud = await syncImportantLinks();
+    renderImportantLinks();
+    showToast(
+        savedInCloud
+            ? 'Link eliminado y sincronizado.'
+            : 'El link se eliminó localmente, pero no pudo sincronizarse.',
+        savedInCloud ? 'info' : 'warning'
+    );
+}
+
+function renderImportantLinks() {
+    const container = document.getElementById('important-links-list');
+    if (!container) return;
+
+    const links = Array.isArray(state.importantLinks) ? state.importantLinks : [];
+    if (links.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">Aún no hay links importantes registrados.</div>';
+        return;
+    }
+
+    container.innerHTML = links.map((link, index) => {
+        const safeUrl = normalizeImportantLinkUrl(link.url);
+        if (!safeUrl) return '';
+        const credentials = state.importantLinkCredentials[link.id];
+
+        return `
+            <div class="item-card" style="display:flex; justify-content:space-between; align-items:center; gap:14px;">
+                <div style="min-width:0;">
+                    <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700; color:var(--dn-blue-primary); text-decoration:none; word-break:break-word;">
+                        <i data-lucide="external-link" style="width:15px; height:15px; vertical-align:text-bottom;"></i> ${escapeHtml(link.name || 'Link sin nombre')}
+                    </a>
+                    ${link.description ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(link.description)}</div>` : ''}
+                    ${credentials?.username ? `<div style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">Usuario: <strong>${escapeHtml(credentials.username)}</strong></div>` : ''}
+                    ${credentials?.password ? `<div style="font-size:0.78rem; color:var(--text-muted); margin-top:3px;">Contraseña: <input id="important-link-password-${index}" type="password" value="${escapeHtml(credentials.password)}" readonly style="width:125px; border:0; background:transparent; color:var(--text-dark); font:inherit; padding:0;"> <button type="button" class="btn-secondary btn-sm" style="padding:2px 7px;" onclick="toggleImportantLinkPassword(${index})">Ver</button></div>` : ''}
+                </div>
+                <button class="btn-danger btn-sm" type="button" onclick="deleteImportantLink(${index})" title="Eliminar link">
+                    <i data-lucide="trash-2"></i>
+                </button>
+            </div>
+        `;
+    }).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
+
+    lucide.createIcons();
+}
+
+function toggleImportantLinkPassword(index) {
+    const passwordInput = document.getElementById(`important-link-password-${index}`);
+    if (!passwordInput) return;
+    passwordInput.type = passwordInput.type === 'password' ? 'text' : 'password';
 }
 
 function openEncoladasNotice() {
@@ -2379,6 +2540,7 @@ function renderAll() {
     renderReportingHistory();
     renderAdminTable();
     renderMetrics();
+    renderImportantLinks();
 }
 
 // ==========================================================================
