@@ -66,6 +66,7 @@ let state = {
     ],
     importantLinks: [],
     editingImportantLinkId: null,
+    importantLinkFoldersOpen: {},
     isReportingAuthenticated: false,
     activeTab: 'inicio',
     activeModalId: null,
@@ -1309,8 +1310,10 @@ function renderImportantLinks() {
 
     container.innerHTML = [...linksByCategory.entries()]
         .sort(([firstCategory], [secondCategory]) => firstCategory.localeCompare(secondCategory, 'es'))
-        .map(([category, categoryLinks]) => `
-            <details class="important-links-folder" open>
+        .map(([category, categoryLinks]) => {
+            const isFolderOpen = state.importantLinkFoldersOpen[category] !== false;
+            return `
+            <details class="important-links-folder" data-category="${escapeHtml(category)}" ${isFolderOpen ? 'open' : ''} ontoggle="setImportantLinkFolderOpen(this.dataset.category, this.open)">
                 <summary class="important-links-folder-header">
                     <span class="important-links-folder-title">
                         <i data-lucide="folder"></i>
@@ -1343,9 +1346,15 @@ function renderImportantLinks() {
                     }).join('')}
                 </div>
             </details>
-        `).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
+        `;
+        }).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
 
     lucide.createIcons();
+}
+
+function setImportantLinkFolderOpen(category, isOpen) {
+    if (!category) return;
+    state.importantLinkFoldersOpen[category] = Boolean(isOpen);
 }
 
 function getImportantLinkCategory(link) {
