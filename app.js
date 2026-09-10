@@ -1154,9 +1154,10 @@ async function handleImportantLinkSubmit(e) {
     const name = getInputValue('important-link-name');
     const url = normalizeImportantLinkUrl(getInputValue('important-link-url'));
     const description = getInputValue('important-link-description');
+    const category = getInputValue('important-link-category');
 
-    if (!name || !url) {
-        showToast('Ingresa un nombre y un link válido que comience con http:// o https://.', 'warning');
+    if (!name || !url || !category) {
+        showToast('Ingresa un nombre, categoría y un link válido que comience con http:// o https://.', 'warning');
         return;
     }
 
@@ -1165,6 +1166,7 @@ async function handleImportantLinkSubmit(e) {
         id: linkId,
         name,
         url,
+        category,
         description,
         createdAt: new Date().toISOString()
     });
@@ -1204,18 +1206,51 @@ function renderImportantLinks() {
     if (!container) return;
 
     const links = Array.isArray(state.importantLinks) ? state.importantLinks : [];
+    const searchInput = document.getElementById('important-links-search');
+    const categoryFilter = document.getElementById('important-links-category-filter');
+    const searchTerm = (searchInput?.value || '').trim().toLowerCase();
+    let selectedCategory = categoryFilter?.value || 'ALL';
+
+    if (categoryFilter) {
+        const currentValue = categoryFilter.value || 'ALL';
+        const categories = [...new Set(links.map(getImportantLinkCategory))]
+            .sort((a, b) => a.localeCompare(b, 'es'));
+        categoryFilter.innerHTML = `<option value="ALL">Todas las categorías</option>${categories.map(category => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`).join('')}`;
+        categoryFilter.value = categories.includes(currentValue) ? currentValue : 'ALL';
+        selectedCategory = categoryFilter.value;
+    }
+
     if (links.length === 0) {
         container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">Aún no hay links importantes registrados.</div>';
         return;
     }
 
-    container.innerHTML = links.map((link, index) => {
+    const filteredLinks = links
+        .map((link, index) => ({ link, index }))
+        .filter(({ link }) => {
+            const category = getImportantLinkCategory(link);
+            const searchableContent = [link.name, link.url, link.description, category]
+                .filter(Boolean)
+                .join(' ')
+                .toLowerCase();
+            return (selectedCategory === 'ALL' || category === selectedCategory)
+                && (!searchTerm || searchableContent.includes(searchTerm));
+        });
+
+    if (filteredLinks.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No se encontraron links con esos criterios.</div>';
+        return;
+    }
+
+    container.innerHTML = filteredLinks.map(({ link, index }) => {
         const safeUrl = normalizeImportantLinkUrl(link.url);
         if (!safeUrl) return '';
+        const category = getImportantLinkCategory(link);
 
         return `
             <div class="item-card" style="display:flex; justify-content:space-between; align-items:center; gap:14px;">
                 <div style="min-width:0;">
+                    <span class="tag-category" style="margin-right:6px;">${escapeHtml(category)}</span>
                     <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700; color:var(--dn-blue-primary); text-decoration:none; word-break:break-word;">
                         <i data-lucide="external-link" style="width:15px; height:15px; vertical-align:text-bottom;"></i> ${escapeHtml(link.name || 'Link sin nombre')}
                     </a>
@@ -1229,6 +1264,10 @@ function renderImportantLinks() {
     }).join('') || '<div style="color:var(--text-muted); text-align:center; padding:16px; font-size:0.85rem;">No hay links válidos para mostrar.</div>';
 
     lucide.createIcons();
+}
+
+function getImportantLinkCategory(link) {
+    return String(link?.category || '').trim() || 'Sin categoría';
 }
 
 function openEncoladasNotice() {

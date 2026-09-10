@@ -752,7 +752,7 @@
 
             <div class="clean-card form-card">
                 <form id="important-links-form" onsubmit="handleImportantLinkSubmit(event)">
-                    <div class="form-row">
+                    <div class="form-row important-links-form-row">
                         <div class="form-group">
                             <label for="important-link-name">Nombre del link</label>
                             <input type="text" id="important-link-name" placeholder="Ej. Tablero de seguimiento" required>
@@ -760,6 +760,10 @@
                         <div class="form-group">
                             <label for="important-link-url">Link</label>
                             <input type="url" id="important-link-url" placeholder="https://..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="important-link-category">Categoría</label>
+                            <input type="text" id="important-link-category" placeholder="Ej. Dashboards" required>
                         </div>
                     </div>
                     <div class="form-group">
@@ -771,7 +775,17 @@
                     </div>
                 </form>
 
-                <div id="important-links-list" class="feed-container" style="margin-top:20px;"></div>
+                <div class="important-links-filter-bar" style="margin-top:20px;">
+                    <div class="search-input-box">
+                        <i data-lucide="search"></i>
+                        <input type="search" id="important-links-search" placeholder="Buscar link..." oninput="renderImportantLinks()">
+                    </div>
+                    <select id="important-links-category-filter" class="select-stylish" onchange="renderImportantLinks()">
+                        <option value="ALL">Todas las categorías</option>
+                    </select>
+                </div>
+
+                <div id="important-links-list" class="feed-container" style="margin-top:16px;"></div>
             </div>
         </section>
 
@@ -1278,6 +1292,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3211.0"></script>
+    <script src="app.js?v=3212.0"></script>
 </body>
 </html>

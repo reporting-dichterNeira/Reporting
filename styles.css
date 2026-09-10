@@ -859,6 +859,29 @@ body.dn-light-theme {
     gap: 14px;
 }
 
+.important-links-form-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.35fr) minmax(150px, 0.75fr);
+}
+
+.important-links-filter-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.important-links-filter-bar .search-input-box {
+    flex: 1 1 260px;
+}
+
+.important-links-filter-bar .search-input-box input {
+    width: 100%;
+}
+
+@media (max-width: 900px) {
+    .important-links-form-row { grid-template-columns: 1fr; }
+}
+
 label {
     font-size: 0.82rem;
     font-weight: 600;
