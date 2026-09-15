@@ -1089,6 +1089,12 @@ input:focus, select:focus, textarea:focus {
     overflow-y: auto;
 }
 
+/* Los links se muestran completos; el desplazamiento queda a cargo de la página. */
+#important-links-list {
+    max-height: none;
+    overflow: visible;
+}
+
 .item-card {
     background: var(--dn-bg-light);
     border: 1px solid var(--dn-border-light);
