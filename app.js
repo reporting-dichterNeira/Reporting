@@ -977,6 +977,22 @@ function closeIngestModal() {
     if (modal) modal.classList.remove('active');
 }
 
+function generateIngestTicketId() {
+    const ticketInput = document.getElementById('ing-id');
+    if (!ticketInput) return;
+
+    let generatedId = generateUniqueReqId();
+    let attempts = 0;
+    while (state.requests.some(request => request.id === generatedId) && attempts < 10) {
+        generatedId = generateUniqueReqId();
+        attempts += 1;
+    }
+
+    ticketInput.value = generatedId;
+    ticketInput.focus();
+    showToast(`Folio ${generatedId} generado automáticamente.`, 'info');
+}
+
 function handleIngestSubmit(e) {
     e.preventDefault();
     try {

@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <!-- Supabase: bandeja compartida de tickets entre equipos -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="styles.css?v=3202.0">
+    <link rel="stylesheet" href="styles.css?v=3203.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -1197,10 +1197,15 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="ing-id">Folio / Ticket ID</label>
-                        <div class="input-with-icon">
-                            <i data-lucide="hash"></i>
-                            <input type="text" id="ing-id" placeholder="Ej. REQ-8810-952" required>
+                        <label for="ing-id">Folio / Ticket ID <span style="font-weight:400; color:var(--text-muted);">(manual o automático)</span></label>
+                        <div class="ticket-input-group ingest-ticket-group">
+                            <div class="input-with-icon">
+                                <i data-lucide="hash"></i>
+                                <input type="text" id="ing-id" placeholder="Ej. REQ-8810-952" required>
+                            </div>
+                            <button type="button" class="btn-secondary" onclick="generateIngestTicketId()" title="Generar folio automáticamente">
+                                <i data-lucide="wand-2"></i> Auto
+                            </button>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1291,6 +1296,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3216.0"></script>
+    <script src="app.js?v=3217.0"></script>
 </body>
 </html>
