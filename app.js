@@ -2525,6 +2525,7 @@ function renderAdminTable() {
     const catFilter = document.getElementById('admin-category-filter')?.value || 'ALL';
     const countryFilter = document.getElementById('admin-country-filter')?.value || 'ALL';
     const analystFilter = document.getElementById('admin-analyst-filter')?.value || 'ALL';
+    const statusFilter = document.getElementById('admin-status-filter')?.value || 'ALL';
 
     const filtered = state.requests.filter(req => {
         const matchesQuery = 
@@ -2537,6 +2538,7 @@ function renderAdminTable() {
 
         const matchesCat = catFilter === 'ALL' || req.category === catFilter;
         const matchesCountry = countryFilter === 'ALL' || req.pais === countryFilter;
+        const matchesStatus = statusFilter === 'ALL' || (req.status || 'PENDING') === statusFilter;
         
         let matchesAnalyst = true;
         if (analystFilter === 'UNASSIGNED') {
@@ -2545,7 +2547,7 @@ function renderAdminTable() {
             matchesAnalyst = req.analyst === analystFilter;
         }
 
-        return matchesQuery && matchesCat && matchesCountry && matchesAnalyst;
+        return matchesQuery && matchesCat && matchesCountry && matchesAnalyst && matchesStatus;
     });
 
     if (filtered.length === 0) {

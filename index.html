@@ -344,6 +344,7 @@
                                     <i data-lucide="globe"></i>
                                     <select id="enc-pais" required>
                                         <option value="">-- Seleccionar País --</option>
+                                        <option value="General / Todos">General / Todos los países</option>
                                         <option value="Bolivia">Bolivia</option>
                                         <option value="Chile">Chile</option>
                                         <option value="Colombia">Colombia</option>
@@ -508,6 +509,7 @@
                                     <i data-lucide="globe"></i>
                                     <select id="rep-pais" required>
                                         <option value="">-- Seleccionar --</option>
+                                        <option value="General / Todos">General / Todos los países</option>
                                         <option value="Bolivia">Bolivia</option>
                                         <option value="Chile">Chile</option>
                                         <option value="Colombia">Colombia</option>
@@ -680,6 +682,7 @@
 
                         <select id="admin-country-filter" onchange="renderAdminTable()" class="select-stylish">
                             <option value="ALL">Todos los Países</option>
+                            <option value="General / Todos">General / Todos los países</option>
                             <option value="Colombia">Colombia</option>
                             <option value="Costa Rica">Costa Rica</option>
                             <option value="Guatemala">Guatemala</option>
@@ -692,6 +695,13 @@
                             <option value="Mayumi Sanchez">Mayumi Sanchez</option>
                             <option value="Juliana Chimbi">Juliana Chimbi</option>
                             <option value="UNASSIGNED">Sin Asignar</option>
+                        </select>
+
+                        <select id="admin-status-filter" onchange="renderAdminTable()" class="select-stylish" aria-label="Filtrar por estado de la solicitud">
+                            <option value="ALL">Todos los Estados</option>
+                            <option value="PENDING">Pendientes</option>
+                            <option value="IN_PROGRESS">En Proceso</option>
+                            <option value="RESOLVED">Resueltas / Gestionadas</option>
                         </select>
 
                         <button class="btn-secondary" onclick="fetchCloudData(true)" title="Forzar sincronización desde la nube">
@@ -1296,6 +1306,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3217.0"></script>
+    <script src="app.js?v=3218.0"></script>
 </body>
 </html>
