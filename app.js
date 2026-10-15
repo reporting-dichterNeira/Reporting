@@ -7,6 +7,7 @@ const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 const PENDING_EMAIL_NOTIFICATIONS_KEY = 'dn_portal_pending_admin_emails_v1';
+const PENDING_REQUEST_WRITES_KEY = 'dn_portal_pending_request_writes_v1';
 const ANALYST_STATUS_RECORD_ID = 'PORTAL_META_ANALYST_STATUS_V1';
 const IMPORTANT_LINKS_RECORD_ID = 'PORTAL_META_IMPORTANT_LINKS_V1';
 
@@ -16,6 +17,14 @@ const IMPORTANT_LINKS_RECORD_ID = 'PORTAL_META_IMPORTANT_LINKS_V1';
 const SUPABASE_URL = 'https://fqvowwczsymclcsfhnvi.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_en7K1K8jJtI2hIQ8KVTuHQ__aT9-QpU';
 let supabaseClient = null;
+const pendingRequestWrites = new Map();
+const deletingRequestIds = new Set();
+let requestWriteInFlight = null;
+let requestSyncRevision = 0;
+let cloudReadSequence = 0;
+let lastAppliedCloudRead = 0;
+let ingestSubmitting = false;
+let pendingRequestWritesPersisted = true;
 
 function getSupabaseClient() {
     if (supabaseClient) return supabaseClient;
@@ -267,6 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('#cloud-sync-status, .sync-badge-status').forEach(el => el.remove());
 
     loadFromStorage();
+    loadPendingRequestWrites();
     loadNovedadesFromStorage();
 
     const savedAuth = sessionStorage.getItem(REPORTING_SESSION_KEY);
@@ -283,6 +293,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Reintenta entregas pendientes sin depender de la sincronización antigua.
     setTimeout(() => retryPendingAdminNotifications(), 1200);
     window.addEventListener('online', () => retryPendingAdminNotifications(false));
+    window.addEventListener('online', () => fetchCloudData());
 
     fetchCloudData();
     setInterval(fetchCloudData, 5000);
@@ -301,19 +312,26 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================================================
-// 2. SINCRONIZACIÓN BASE DE DATOS GLOBAL EN LA NUBE (4 SERVIDORES MULTI-NUBE)
+// 2. SINCRONIZACIÓN CON SUPABASE Y REINTENTO DE ESCRITURAS PENDIENTES
 // ==========================================================================
 async function fetchCloudData(userTriggered = false) {
     const client = getSupabaseClient();
     if (!client) return false;
 
     try {
+        // Reintenta solo cambios explícitamente pendientes, nunca toda la caché antigua.
+        await flushPendingRequestWrites();
+        const readRevision = requestSyncRevision;
+        const readSequence = ++cloudReadSequence;
         const { data, error } = await client
             .from('portal_requests')
             .select('id, payload, created_at, updated_at')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
+        // Una respuesta iniciada antes de un guardado no puede deshacer ese cambio.
+        if (readRevision !== requestSyncRevision || readSequence < lastAppliedCloudRead) return false;
+        lastAppliedCloudRead = readSequence;
 
         const analystStatusRecord = (data || []).find(row => row && row.id === ANALYST_STATUS_RECORD_ID);
         if (Array.isArray(analystStatusRecord?.payload?.analystStatus)) {
@@ -335,9 +353,8 @@ async function fetchCloudData(userTriggered = false) {
                 updatedAt: row.updated_at
             }));
 
-        // Supabase es la fuente definitiva. No se mezcla con la copia local,
-        // porque esa copia puede contener tickets que ya fueron eliminados.
-        state.requests = cloudRequests;
+        // Conserva las escrituras sin confirmar, pero no revive solicitudes de cachés antiguas.
+        state.requests = overlayPendingRequestWrites(cloudRequests);
         saveToStorage();
         renderAll();
         renderNovedades();
@@ -346,7 +363,12 @@ async function fetchCloudData(userTriggered = false) {
         checkTodayNovelty();
 
         if (userTriggered) {
-            showToast(`Nube sincronizada (${state.requests.length} solicitudes globales)`, 'success');
+            showToast(
+                pendingRequestWrites.size
+                    ? `Datos actualizados. Quedan ${pendingRequestWrites.size} solicitud(es) pendientes de sincronizar en este equipo.`
+                    : `Nube sincronizada (${state.requests.length} solicitudes globales)`,
+                pendingRequestWrites.size ? 'warning' : 'success'
+            );
         }
         return true;
     } catch (error) {
@@ -492,95 +514,102 @@ function mergeRequests(localArr, cloudArr) {
     return merged;
 }
 
-async function syncCloudData(requestIds = []) {
-    const client = getSupabaseClient();
-    if (!client) return false;
+function overlayPendingRequestWrites(cloudRequests) {
+    const requests = new Map(cloudRequests.map(request => [request.id, request]));
+    pendingRequestWrites.forEach(request => requests.set(request.id, JSON.parse(JSON.stringify(request))));
+    return [...requests.values()].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
 
+function savePendingRequestWrites() {
     try {
-        // Solo se guardan los tickets que se acaban de crear o modificar.
-        // Así una copia antigua del navegador no puede recrear tickets borrados.
-        const idsToSave = new Set(Array.isArray(requestIds) ? requestIds.filter(Boolean) : [requestIds]);
-        if (idsToSave.size === 0) return true;
-
-        const now = new Date().toISOString();
-        const records = state.requests
-            .filter(request => request && request.id && idsToSave.has(request.id))
-            .map(request => ({
-                id: request.id,
-                payload: request,
-                created_at: request.createdAt || now,
-                updated_at: now
-            }));
-
-        if (records.length > 0) {
-            const { error: writeError } = await client
-                .from('portal_requests')
-                .upsert(records, { onConflict: 'id' });
-            if (writeError) throw writeError;
-        }
-
-        saveToStorage();
-        return true;
+        localStorage.setItem(PENDING_REQUEST_WRITES_KEY, JSON.stringify([...pendingRequestWrites.values()]));
+        pendingRequestWritesPersisted = true;
     } catch (error) {
-        console.error('Error guardando tickets en Supabase:', error);
-        return false;
+        pendingRequestWritesPersisted = false;
+        console.error('No se pudo guardar la cola local de solicitudes:', error);
+        showToast('No hay espacio para conservar los cambios al cerrar esta página. Mantén la página abierta y reintenta la sincronización.', 'warning');
     }
+    renderPendingRequestSync();
+}
 
-    // 1. Pre-lectura silenciosa para asegurar no sobrescribir solicitudes de otros dispositivos
+function loadPendingRequestWrites() {
     try {
-        for (const endpoint of CLOUD_ENDPOINTS) {
-            try {
-                const resp = await fetch(endpoint.url + '?t=' + Date.now(), { cache: 'no-store' });
-                if (resp.ok) {
-                    const jsonObj = await resp.json();
-                    if (jsonObj && Array.isArray(jsonObj.requests)) {
-                        state.requests = mergeRequests(state.requests, jsonObj.requests);
-                    }
-                    if (jsonObj && Array.isArray(jsonObj.analystStatus)) {
-                        state.analystStatus = mergeAnalystStatus(state.analystStatus, jsonObj.analystStatus);
-                    }
-                }
-            } catch (e) {}
+        const saved = JSON.parse(localStorage.getItem(PENDING_REQUEST_WRITES_KEY) || '[]');
+        if (Array.isArray(saved)) {
+            saved.filter(isPortalTicket).forEach(request => pendingRequestWrites.set(request.id, request));
         }
-    } catch (err) {
-        console.warn("Aviso durante pre-lectura nube:", err);
+        state.requests = overlayPendingRequestWrites(state.requests);
+    } catch (error) {
+        console.error('No se pudo leer la cola local de solicitudes:', error);
     }
+    renderPendingRequestSync();
+}
 
-    saveToStorage();
-    saveNovedadesToStorage();
+function renderPendingRequestSync() {
+    const notice = document.getElementById('pending-request-sync');
+    if (!notice) return;
+    notice.hidden = pendingRequestWrites.size === 0;
+    notice.textContent = !pendingRequestWrites.size ? '' : pendingRequestWritesPersisted
+        ? `${pendingRequestWrites.size} solicitud(es) pendientes de sincronizar en este equipo. Se reintentará automáticamente al recuperar conexión; también puedes pulsar “Sincronizar Nube”.`
+        : `${pendingRequestWrites.size} solicitud(es) pendientes de sincronizar. Mantén esta página abierta: el navegador no pudo conservar la copia para después de cerrar.`;
+}
 
-    const payload = {
-        requests: state.requests,
-        analystStatus: state.analystStatus,
-        lastUpdated: new Date().toISOString()
-    };
+function flushPendingRequestWrites() {
+    if (requestWriteInFlight) return requestWriteInFlight;
+    const client = getSupabaseClient();
+    if (!client || pendingRequestWrites.size === 0) return Promise.resolve(pendingRequestWrites.size === 0);
 
-    const rawBody = JSON.stringify(payload);
-
-    const writePromises = CLOUD_ENDPOINTS.map(async endpoint => {
+    requestWriteInFlight = (async () => {
         try {
-            const res = await fetch(endpoint.url, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: rawBody
-            });
-
-            // Si el servidor espejo expira (404), se recrea automáticamente de inmediato
-            if (!res.ok && res.status === 404) {
-                console.warn(`Restaurando servidor espejo expirado (${endpoint.url})...`);
-                await fetch('https://jsonblob.com/api/jsonBlob', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: rawBody
+            while (pendingRequestWrites.size > 0) {
+                const batch = [...pendingRequestWrites.values()]
+                    .filter(request => !deletingRequestIds.has(request.id)).slice(0, 50);
+                if (!batch.length) break;
+                const now = new Date().toISOString();
+                const records = batch.map(request => ({
+                    id: request.id,
+                    payload: request,
+                    created_at: request.createdAt || now,
+                    updated_at: now
+                }));
+                const { data, error } = await client.from('portal_requests')
+                    .upsert(records, { onConflict: 'id' }).select('id');
+                if (error) throw error;
+                const confirmedIds = new Set((data || []).map(row => row.id));
+                batch.forEach(request => {
+                    // Una confirmación vieja nunca borra una edición más reciente de la cola.
+                    if (confirmedIds.has(request.id) && pendingRequestWrites.get(request.id) === request) {
+                        pendingRequestWrites.delete(request.id);
+                    }
                 });
+                requestSyncRevision += 1;
+                savePendingRequestWrites();
+                if (batch.some(request => !confirmedIds.has(request.id))) {
+                    throw new Error('Supabase no confirmó todas las solicitudes enviadas.');
+                }
             }
-        } catch (err) {
-            console.warn(`Aviso escribiendo en (${endpoint.url}):`, err);
+            return pendingRequestWrites.size === 0;
+        } catch (error) {
+            console.error('Error guardando tickets en Supabase; quedan pendientes de reintento:', error);
+            return false;
         }
-    });
+    })().finally(() => { requestWriteInFlight = null; });
+    return requestWriteInFlight;
+}
 
-    await Promise.allSettled(writePromises);
-    console.log("✅ Sincronización multi-nube infalible completada.");
+async function syncCloudData(requestIds = []) {
+    const idsToSave = new Set((Array.isArray(requestIds) ? requestIds : [requestIds]).filter(Boolean));
+    if (idsToSave.size === 0) return true;
+    const requests = state.requests.filter(request => idsToSave.has(request.id) && !deletingRequestIds.has(request.id));
+    if (requests.length !== idsToSave.size) return false;
+    for (const request of requests) {
+        pendingRequestWrites.set(request.id, JSON.parse(JSON.stringify(request)));
+    }
+    requestSyncRevision += 1;
+    savePendingRequestWrites();
+    saveToStorage();
+    await flushPendingRequestWrites();
+    return [...idsToSave].every(id => !pendingRequestWrites.has(id));
 }
 
 // ==========================================================================
@@ -993,10 +1022,16 @@ function generateIngestTicketId() {
     showToast(`Folio ${generatedId} generado automáticamente.`, 'info');
 }
 
-function handleIngestSubmit(e) {
+async function handleIngestSubmit(e) {
     e.preventDefault();
+    if (ingestSubmitting) return;
+    const submitButton = e.target?.querySelector('button[type="submit"]');
     try {
         const id = getInputValue('ing-id') || generateUniqueReqId();
+        if (state.requests.some(request => request.id === id)) {
+            showToast('Ya existe una solicitud con ese folio. Ingresa otro o genera uno con Auto.', 'warning');
+            return;
+        }
         const email = getInputValue('ing-email');
         const cat = getInputValue('ing-cat');
         const estudio = getInputValue('ing-estudio');
@@ -1041,14 +1076,27 @@ function handleIngestSubmit(e) {
         };
 
         state.requests = mergeRequests(state.requests, [newReq]);
-        saveToStorage();
+        ingestSubmitting = true;
+        if (submitButton) submitButton.disabled = true;
+        const saving = syncCloudData([newReq.id]);
         renderAll();
-        syncCloudData([newReq.id]);
-        closeIngestModal();
-        showToast(`✅ Solicitud ${id} ingestada y sincronizada globalmente.`, 'success');
+        const synced = await saving;
+        renderAll();
+        if (synced || pendingRequestWritesPersisted) closeIngestModal();
+        showToast(
+            synced
+                ? `Solicitud ${id} guardada y confirmada en la nube.`
+                : pendingRequestWritesPersisted
+                    ? `Solicitud ${id} pendiente de sincronizar. Se conserva en este equipo y se reintentará automáticamente.`
+                    : `Solicitud ${id} pendiente de sincronizar. Mantén esta página abierta: el navegador no pudo guardar una copia para después de cerrar.`,
+            synced ? 'success' : 'warning'
+        );
     } catch (err) {
         console.error("Error al ingestar solicitud:", err);
         showToast("Error al ingestar la solicitud. Revisa los datos.", "error");
+    } finally {
+        ingestSubmitting = false;
+        if (submitButton) submitButton.disabled = false;
     }
 }
 
@@ -1661,6 +1709,10 @@ async function deleteRequest(id) {
     }
 
     try {
+        deletingRequestIds.add(id);
+        requestSyncRevision += 1;
+        // Espera cualquier envío en curso antes de borrar para que no recree el registro.
+        if (requestWriteInFlight) await requestWriteInFlight;
         // Elimina primero el registro central. Así no reaparece al sincronizar desde otro PC.
         const { error } = await client
             .from('portal_requests')
@@ -1668,6 +1720,9 @@ async function deleteRequest(id) {
             .eq('id', id);
         if (error) throw error;
 
+        pendingRequestWrites.delete(id);
+        requestSyncRevision += 1;
+        savePendingRequestWrites();
         state.requests = state.requests.filter(r => r.id !== id);
         saveToStorage();
         renderAll();
@@ -1678,6 +1733,8 @@ async function deleteRequest(id) {
     } catch (error) {
         console.error('Error eliminando ticket en Supabase:', error);
         showToast('No fue posible eliminar la solicitud. Intenta nuevamente.', 'error');
+    } finally {
+        deletingRequestIds.delete(id);
     }
 }
 
@@ -2647,6 +2704,7 @@ function renderMetrics() {
 }
 
 function renderAll() {
+    renderPendingRequestSync();
     renderMiniDashboard();
     renderFieldHistory();
     renderReportingHistory();
