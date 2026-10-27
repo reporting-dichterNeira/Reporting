@@ -18,7 +18,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <!-- Supabase: bandeja compartida de tickets entre equipos -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <link rel="stylesheet" href="styles.css?v=3203.0">
+    <link rel="stylesheet" href="styles.css?v=3204.0">
 </head>
 <body class="dn-light-theme">
     <!-- Splash Screen Animación de Bienvenida D&N Reporting -->
@@ -777,7 +777,8 @@
                     </div>
                     <div class="form-group">
                         <label for="important-link-description">Descripción <span style="font-weight:400; color:var(--text-muted);">(opcional)</span></label>
-                        <textarea id="important-link-description" rows="2" placeholder="Explica brevemente para qué sirve este acceso."></textarea>
+                        <textarea id="important-link-description" rows="4" placeholder="Explica para qué sirve este acceso. Puedes separar la información en varias líneas."></textarea>
+                        <small class="description-help">Usa una línea por dato para facilitar la lectura y la copia.</small>
                     </div>
                     <div class="modal-footer" style="margin-top:12px;">
                         <button type="button" id="important-link-cancel-edit" class="btn-secondary hidden" onclick="cancelImportantLinkEdit()">Cancelar edición</button>
@@ -1123,6 +1124,11 @@
             </div>
 
             <div class="modal-body">
+                <div class="request-summary-actions">
+                    <button type="button" class="btn-secondary btn-sm" onclick="openRequestDetails(state.activeModalId)">
+                        <i data-lucide="eye"></i> Ver detalle completo
+                    </button>
+                </div>
                 <div id="modal-summary" class="summary-card"></div>
 
                 <div class="form-group" style="margin-top:16px;">
@@ -1304,9 +1310,26 @@
         </div>
     </div>
 
+    <!-- LECTURA AMPLIADA DEL DETALLE DE SOLICITUD -->
+    <div id="request-detail-modal" class="modal-backdrop request-detail-backdrop" role="dialog" aria-modal="true" aria-labelledby="request-detail-title" tabindex="-1" onclick="if (event.target === this) closeRequestDetails()">
+        <div class="modal-box request-detail-box">
+            <div class="modal-header">
+                <h3 id="request-detail-title"><i data-lucide="eye"></i> Detalle de la solicitud</h3>
+                <button id="request-detail-close" class="close-btn" type="button" onclick="closeRequestDetails()" aria-label="Cerrar detalle">&times;</button>
+            </div>
+            <dl id="request-detail-info" class="request-detail-info"></dl>
+            <h4 class="request-detail-label">Detalle del requerimiento</h4>
+            <div id="request-detail-text" class="readable-detail-text" tabindex="0"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="copyRequestDetails()"><i data-lucide="copy"></i> Copiar detalle</button>
+                <button type="button" class="btn-dn-primary" onclick="closeRequestDetails()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3219.0"></script>
+    <script src="app.js?v=3220.0"></script>
 </body>
 </html>

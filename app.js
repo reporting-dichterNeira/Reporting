@@ -25,6 +25,8 @@ let cloudReadSequence = 0;
 let lastAppliedCloudRead = 0;
 let ingestSubmitting = false;
 let pendingRequestWritesPersisted = true;
+let requestDetailReturnFocus = null;
+let requestDetailBodyOverflow = '';
 
 function getSupabaseClient() {
     if (supabaseClient) return supabaseClient;
@@ -1391,13 +1393,14 @@ function renderImportantLinks() {
                         if (!safeUrl) return '';
                         return `
                             <div class="item-card important-link-item">
-                                <div style="min-width:0;">
+                                <div class="important-link-copyable">
                                     <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="font-weight:700; color:var(--dn-blue-primary); text-decoration:none; word-break:break-word;">
                                         <i data-lucide="external-link" style="width:15px; height:15px; vertical-align:text-bottom;"></i> ${escapeHtml(link.name || 'Link sin nombre')}
                                     </a>
-                                    ${link.description ? `<div style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">${escapeHtml(link.description)}</div>` : ''}
+                                    ${link.description ? `<div class="important-link-description">${escapeHtml(link.description)}</div>` : ''}
                                 </div>
                                 <div class="action-buttons-cell">
+                                    ${link.description ? `<button class="btn-secondary btn-sm" type="button" onclick="copyImportantLinkDescription(${index})" title="Copiar descripción"><i data-lucide="copy"></i> Copiar</button>` : ''}
                                     <button class="btn-secondary btn-sm" type="button" onclick="editImportantLink(${index})" title="Editar link">
                                         <i data-lucide="edit-2"></i> Editar
                                     </button>
@@ -1423,6 +1426,11 @@ function setImportantLinkFolderOpen(category, isOpen) {
 
 function getImportantLinkCategory(link) {
     return String(link?.category || '').trim() || 'Sin categoría';
+}
+
+function copyImportantLinkDescription(index) {
+    const link = state.importantLinks[index];
+    if (link?.description) return copyReadableText(link.description);
 }
 
 function openEncoladasNotice() {
@@ -2669,6 +2677,9 @@ function renderAdminTable() {
                 <td>${ticketOrDateInfo}</td>
                 <td>
                     <div class="action-buttons-cell">
+                        <button type="button" class="btn-secondary btn-sm" onclick="openRequestDetails(${escapeHtml(JSON.stringify(req.id))})" title="Ver detalle completo" aria-label="Ver detalle completo">
+                            <i data-lucide="eye"></i>
+                        </button>
                         <button class="btn-secondary btn-sm" onclick="openModal('${req.id}')" title="Gestionar estado">
                             <i data-lucide="edit-2"></i> Gestionar
                         </button>
@@ -2978,6 +2989,91 @@ function updateJiraNoteFromInput(ticketVal) {
     }
 }
 
+function openRequestDetails(id) {
+    const req = state.requests.find(request => request.id === id);
+    const modal = document.getElementById('request-detail-modal');
+    if (!req || !modal) return;
+
+    const categoryLabels = {
+        ENCOLADA: 'Encolada PDV', BI_EXISTING: 'Power BI Existente',
+        BI_EXISTING_INCIDENT: 'Novedad con BI Existente', BI_NEW: 'Power BI Nuevo',
+        BI_SPORADIC: 'Solicitud Esporádica'
+    };
+    const statusLabels = { PENDING: 'Pendiente', IN_PROGRESS: 'En Proceso', RESOLVED: 'Resuelta / Gestionada' };
+    const fields = [
+        ['Folio', req.id], ['Categoría', categoryLabels[req.category] || req.category],
+        ['Solicitante', req.email || req.solicitante || 'No registrado'],
+        ['Estado', statusLabels[req.status] || 'Pendiente'],
+        ['Estudio', req.estudio || 'No registrado'], ['País', req.pais || 'No registrado']
+    ];
+    if (req.pdvCode) fields.push(['PDVs / Modalidad', req.pdvCode]);
+    if (req.biNameToEdit) fields.push(['Power BI', req.biNameToEdit]);
+    if (req.ticketNumber) fields.push(['Ticket asignado', req.ticketNumber]);
+    document.getElementById('request-detail-info').innerHTML = fields.map(([label, value]) =>
+        `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`
+    ).join('');
+    // textContent conserva saltos de línea y permite leer texto que contenga símbolos HTML.
+    document.getElementById('request-detail-text').textContent = req.detalle || 'Sin detalle registrado.';
+    if (!modal.classList.contains('active')) {
+        requestDetailReturnFocus = document.activeElement;
+        requestDetailBodyOverflow = document.body.style.overflow;
+    }
+    document.body.style.overflow = 'hidden';
+    modal.classList.add('active');
+    document.getElementById('request-detail-close').focus();
+    lucide.createIcons();
+}
+
+function closeRequestDetails() {
+    const modal = document.getElementById('request-detail-modal');
+    if (!modal?.classList.contains('active')) return;
+    modal.classList.remove('active');
+    document.body.style.overflow = requestDetailBodyOverflow;
+    const fallback = document.getElementById('response-modal')?.classList.contains('active')
+        ? document.querySelector('.request-summary-actions button')
+        : document.getElementById('admin-search');
+    (requestDetailReturnFocus?.isConnected ? requestDetailReturnFocus : fallback)?.focus();
+    requestDetailReturnFocus = null;
+}
+
+function handleRequestDetailKeydown(event) {
+    const modal = document.getElementById('request-detail-modal');
+    if (!modal?.classList.contains('active')) return;
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeRequestDetails();
+    } else if (event.key === 'Tab') {
+        const controls = [...modal.querySelectorAll('button:not([disabled]), [tabindex="0"]')];
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+            event.preventDefault();
+            last?.focus();
+        } else if (!event.shiftKey && (document.activeElement === last || !modal.contains(document.activeElement))) {
+            event.preventDefault();
+            first?.focus();
+        }
+    }
+}
+
+document.addEventListener('keydown', handleRequestDetailKeydown);
+
+function copyRequestDetails() {
+    const text = document.getElementById('request-detail-text')?.textContent;
+    if (text) return copyReadableText(text);
+}
+
+async function copyReadableText(text) {
+    try {
+        await navigator.clipboard.writeText(String(text));
+        showToast('Texto copiado.', 'success');
+        return true;
+    } catch (error) {
+        showToast('No se pudo copiar automáticamente. Puedes seleccionar el texto y copiarlo manualmente.', 'warning');
+        return false;
+    }
+}
+
 function openModal(id) {
     const req = state.requests.find(r => r.id === id);
     if (!req) return;
@@ -2991,7 +3087,7 @@ function openModal(id) {
         <div><strong>Estudio:</strong> ${escapeHtml(req.estudio)} | <strong>País:</strong> ${escapeHtml(req.pais)}</div>
         <div><strong>Modalidad / PDVs:</strong> ${escapeHtml(req.pdvCode || 'Encolada')}</div>
         ${req.fileName ? `<div style="margin-top:4px;"><strong>Archivo Adjunto:</strong> ${renderFileChip(req)}</div>` : ''}
-        <div><strong>Detalle:</strong> "${escapeHtml(req.detalle)}"</div>
+        <div class="request-summary-detail"><strong>Detalle:</strong> ${escapeHtml(req.detalle || 'Sin detalle registrado.')}</div>
     `;
 
     document.getElementById('modalAnalyst').value = req.analyst || '';

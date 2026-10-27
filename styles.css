@@ -905,7 +905,7 @@ label {
     pointer-events: none;
 }
 
-input[type="text"], input[type="password"], input[type="email"], input[type="date"], input[type="file"], select, textarea {
+input[type="text"], input[type="password"], input[type="email"], input[type="url"], input[type="date"], input[type="file"], select, textarea {
     width: 100%;
     padding: 11px 14px 11px 40px;
     background: #FFFFFF;
@@ -1156,6 +1156,27 @@ input:focus, select:focus, textarea:focus {
     justify-content: space-between;
     align-items: center;
     gap: 14px;
+}
+
+.important-link-copyable { flex: 1; min-width: 0; }
+.important-link-description {
+    margin-top: 10px;
+    padding: 12px 14px;
+    background: #FFFFFF;
+    border: 1px solid var(--dn-border-light);
+    border-radius: var(--radius-md);
+    font-size: 1rem;
+    line-height: 1.7;
+    color: var(--text-dark);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+.important-link-item > .action-buttons-cell { flex-wrap: wrap; justify-content: flex-end; }
+.description-help { color: var(--text-muted); line-height: 1.5; }
+
+@media (max-width: 680px) {
+    .important-link-item { flex-direction: column; align-items: stretch; }
 }
 
 .item-top {
@@ -1458,6 +1479,44 @@ input:focus, select:focus, textarea:focus {
     padding: 12px 14px;
     font-size: 0.85rem;
     color: var(--text-dark);
+}
+
+.request-summary-actions { display: flex; justify-content: flex-end; margin-bottom: 10px; }
+.request-summary-detail { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin-top: 8px; }
+#response-modal .modal-box { max-height: calc(100dvh - 32px); overflow-y: auto; }
+.request-detail-backdrop { z-index: 1200; padding: 16px; }
+.request-detail-backdrop:not(.active) { visibility: hidden; }
+.request-detail-box {
+    max-width: 900px;
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+}
+.request-detail-info {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 24px;
+    margin-bottom: 20px;
+}
+.request-detail-info dt { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 3px; }
+.request-detail-info dd { margin: 0; color: var(--text-dark); font-weight: 600; overflow-wrap: anywhere; }
+.request-detail-label { font-size: 1rem; margin-bottom: 10px; color: var(--dn-navy-secondary); }
+.readable-detail-text {
+    background: var(--dn-bg-light);
+    border: 1px solid var(--dn-border-light);
+    border-radius: var(--radius-md);
+    padding: 20px;
+    font-size: 1.1rem;
+    line-height: 1.8;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: text;
+}
+.request-detail-box :focus-visible { outline: 2px solid var(--dn-blue-primary); outline-offset: 3px; }
+@media (max-width: 600px) {
+    .request-detail-box { padding: 18px; }
+    .request-detail-info { grid-template-columns: 1fr; }
+    .request-detail-box .modal-footer { flex-wrap: wrap; }
+    .readable-detail-text { padding: 14px; font-size: 1rem; }
 }
 
 .ticket-input-group { display: flex; gap: 10px; }
