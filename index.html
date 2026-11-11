@@ -1207,7 +1207,7 @@
                 <button class="close-btn" onclick="closeIngestModal()">&times;</button>
             </div>
 
-            <form onsubmit="handleIngestSubmit(event)">
+            <form id="ingest-form" autocomplete="off" onsubmit="handleIngestSubmit(event)">
                 <p style="font-size:0.83rem; color:var(--text-muted); margin-bottom:16px;">
                     Ingresa los datos del requerimiento recibido para agregarlo y sincronizarlo inmediatamente a la nube global.
                 </p>
@@ -1252,7 +1252,19 @@
                         <label for="ing-estudio">Estudio</label>
                         <div class="input-with-icon">
                             <i data-lucide="database"></i>
-                            <input type="text" id="ing-estudio" placeholder="Ej. KO moderno" required>
+                            <select id="ing-estudio" required>
+                                <option value="">-- Seleccionar --</option>
+                                <option value="KO moderno">KO moderno</option>
+                                <option value="KO tradicional">KO tradicional</option>
+                                <option value="Lindley">Lindley</option>
+                                <option value="Heineken">Heineken</option>
+                                <option value="Storelive">Storelive</option>
+                                <option value="P&G">P&G</option>
+                                <option value="CBC">CBC</option>
+                                <option value="ABI">ABI</option>
+                                <option value="AJE">AJE</option>
+                                <option value="Otros">Otros</option>
+                            </select>
                         </div>
                     </div>
                 </div>
@@ -1262,7 +1274,24 @@
                         <label for="ing-pais">País</label>
                         <div class="input-with-icon">
                             <i data-lucide="globe"></i>
-                            <input type="text" id="ing-pais" placeholder="Ej. Perú" required>
+                            <select id="ing-pais" required>
+                                <option value="">-- Seleccionar --</option>
+                                <option value="General / Todos">General / Todos los países</option>
+                                <option value="Bolivia">Bolivia</option>
+                                <option value="Chile">Chile</option>
+                                <option value="Colombia">Colombia</option>
+                                <option value="Costa Rica">Costa Rica</option>
+                                <option value="Ecuador">Ecuador</option>
+                                <option value="El Salvador">El Salvador</option>
+                                <option value="Guatemala">Guatemala</option>
+                                <option value="Honduras">Honduras</option>
+                                <option value="Nicaragua">Nicaragua</option>
+                                <option value="Panamá">Panamá</option>
+                                <option value="Paraguay">Paraguay</option>
+                                <option value="Perú">Perú</option>
+                                <option value="República Dominicana">República Dominicana</option>
+                                <option value="Uruguay">Uruguay</option>
+                            </select>
                         </div>
                     </div>
                     <div class="form-group">
@@ -1330,6 +1359,6 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="toast-wrapper"></div>
 
-    <script src="app.js?v=3220.0"></script>
+    <script src="app.js?v=3221.0"></script>
 </body>
 </html>

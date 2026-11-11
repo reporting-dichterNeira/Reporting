@@ -1084,7 +1084,10 @@ async function handleIngestSubmit(e) {
         renderAll();
         const synced = await saving;
         renderAll();
-        if (synced || pendingRequestWritesPersisted) closeIngestModal();
+        if (synced || pendingRequestWritesPersisted) {
+            document.getElementById('ingest-form')?.reset();
+            closeIngestModal();
+        }
         showToast(
             synced
                 ? `Solicitud ${id} guardada y confirmada en la nube.`
