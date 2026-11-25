@@ -52,6 +52,7 @@ function setup(storage = new Map()) {
         renderAll = () => renderPendingRequestSync();
         renderNovedades = renderVacacionesAdminTable = renderImportantLinks = checkTodayNovelty = () => {};
         closeIngestModal = () => {};
+        state.isReportingAuthenticated = true;
         globalThis.api = {
             fetchCloudData, syncCloudData, handleIngestSubmit, deleteRequest,
             loadFromStorage, loadPendingRequestWrites,

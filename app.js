@@ -5,6 +5,8 @@
 const STORAGE_KEY = 'dn_portal_requests_v3200';
 const NOVEDADES_KEY = 'dn_portal_novedades_v12';
 const REPORTING_SESSION_KEY = 'dn_portal_reporting_auth';
+const REPORTING_USER_ID = 'c7ae61e5-0319-4e35-9d1c-d4131ae79a3f';
+const REPORTING_EMAIL = 'reporting.dichterneira@gmail.com';
 const MY_REQUESTS_KEY = 'dn_portal_my_submitted_ids_v1';
 const PENDING_EMAIL_NOTIFICATIONS_KEY = 'dn_portal_pending_admin_emails_v1';
 const PENDING_REQUEST_WRITES_KEY = 'dn_portal_pending_request_writes_v1';
@@ -36,7 +38,7 @@ function getSupabaseClient() {
     }
 
     supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-        auth: { persistSession: false, autoRefreshToken: false }
+        auth: { persistSession: true, autoRefreshToken: true }
     });
     return supabaseClient;
 }
@@ -281,10 +283,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPendingRequestWrites();
     loadNovedadesFromStorage();
 
-    const savedAuth = sessionStorage.getItem(REPORTING_SESSION_KEY);
-    if (savedAuth === 'true') {
-        state.isReportingAuthenticated = true;
-    }
+    sessionStorage.removeItem(REPORTING_SESSION_KEY);
+    restoreReportingSession();
 
     updateHeaderSessionUI();
     renderAll();
@@ -342,9 +342,8 @@ async function fetchCloudData(userTriggered = false) {
         }
 
         const importantLinksRecord = (data || []).find(row => row && row.id === IMPORTANT_LINKS_RECORD_ID);
-        if (Array.isArray(importantLinksRecord?.payload?.importantLinks)) {
-            state.importantLinks = importantLinksRecord.payload.importantLinks;
-        }
+        state.importantLinks = state.isReportingAuthenticated && Array.isArray(importantLinksRecord?.payload?.importantLinks)
+            ? importantLinksRecord.payload.importantLinks : [];
 
         const cloudRequests = (data || [])
             .filter(row => row && row.id && row.payload && row.id !== ANALYST_STATUS_RECORD_ID && row.id !== IMPORTANT_LINKS_RECORD_ID && !String(row.id).startsWith('TEST-SYNC-'))
@@ -564,8 +563,11 @@ function flushPendingRequestWrites() {
     requestWriteInFlight = (async () => {
         try {
             while (pendingRequestWrites.size > 0) {
-                const batch = [...pendingRequestWrites.values()]
-                    .filter(request => !deletingRequestIds.has(request.id)).slice(0, 50);
+                const isAdmin = state.isReportingAuthenticated;
+                const batch = [...pendingRequestWrites.values()].filter(request =>
+                    !deletingRequestIds.has(request.id) &&
+                    (isAdmin || (request.status === 'PENDING' && !request.analyst))
+                ).slice(0, 50);
                 if (!batch.length) break;
                 const now = new Date().toISOString();
                 const records = batch.map(request => ({
@@ -575,7 +577,7 @@ function flushPendingRequestWrites() {
                     updated_at: now
                 }));
                 const { data, error } = await client.from('portal_requests')
-                    .upsert(records, { onConflict: 'id' }).select('id');
+                    .upsert(records, { onConflict: 'id', ignoreDuplicates: !isAdmin }).select('id');
                 if (error) throw error;
                 const confirmedIds = new Set((data || []).map(row => row.id));
                 batch.forEach(request => {
@@ -1105,25 +1107,63 @@ async function handleIngestSubmit(e) {
     }
 }
 
-function handleReportingAuth(e) {
+async function restoreReportingSession() {
+    const client = getSupabaseClient();
+    if (!client) return;
+    try {
+        const { data, error } = await client.auth.getUser();
+        state.isReportingAuthenticated = !error && data?.user?.id === REPORTING_USER_ID;
+        updateHeaderSessionUI();
+        if (state.isReportingAuthenticated) fetchCloudData();
+    } catch (error) {
+        state.isReportingAuthenticated = false;
+        console.error('No se pudo comprobar la sesión:', error);
+    }
+}
+
+async function handleReportingAuth(e) {
     e.preventDefault();
     const u = document.getElementById('auth-username').value.trim().toLowerCase();
-    const p = document.getElementById('auth-password').value.trim();
-
-    if ((u === 'reporting' || u.includes('reporting')) && p === 'rep123') {
+    const passwordInput = document.getElementById('auth-password');
+    const client = getSupabaseClient();
+    if (!client || (u !== 'reporting' && u !== REPORTING_EMAIL)) {
+        showToast('Credenciales de Reporting incorrectas.', 'warning');
+        return;
+    }
+    try {
+        const { data, error } = await client.auth.signInWithPassword({
+            email: REPORTING_EMAIL, password: passwordInput.value
+        });
+        if (error || data?.user?.id !== REPORTING_USER_ID) {
+            if (!error) await client.auth.signOut({ scope: 'local' });
+            throw error || new Error('Usuario no autorizado');
+        }
+        passwordInput.value = '';
         state.isReportingAuthenticated = true;
-        sessionStorage.setItem(REPORTING_SESSION_KEY, 'true');
         closeReportingAuthModal();
         updateHeaderSessionUI();
         switchTab('admin');
         showToast('¡Desbloqueadas las pestañas de Reporting!', 'success');
-    } else {
+    } catch (error) {
+        state.isReportingAuthenticated = false;
+        passwordInput.value = '';
         showToast('Credenciales de Reporting incorrectas', 'warning');
     }
 }
 
-function logoutReporting() {
+async function logoutReporting() {
+    const client = getSupabaseClient();
+    if (client) {
+        const { error } = await client.auth.signOut({ scope: 'local' });
+        if (error) {
+            showToast('No se pudo cerrar la sesión. Intenta nuevamente.', 'warning');
+            return;
+        }
+    }
     state.isReportingAuthenticated = false;
+    requestSyncRevision += 1;
+    state.importantLinks = [];
+    renderImportantLinks();
     sessionStorage.removeItem(REPORTING_SESSION_KEY);
     updateHeaderSessionUI();
     switchTab('inicio');
